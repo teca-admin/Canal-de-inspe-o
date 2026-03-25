@@ -21,7 +21,12 @@ export const Login: React.FC = () => {
 
       if (authError) throw authError;
     } catch (err: any) {
-      setError(err.message || "Erro ao realizar login");
+      console.error("Login error:", err);
+      if (err.message === "Failed to fetch") {
+        setError("Erro de conexão com o Supabase. Verifique sua internet.");
+      } else {
+        setError(err.message || "Erro ao realizar login");
+      }
     } finally {
       setLoading(false);
     }

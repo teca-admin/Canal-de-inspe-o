@@ -44,8 +44,11 @@ export const Users: React.FC = () => {
       
       if (error) throw error;
       setUsers(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching users:", err);
+      if (err.message === "Failed to fetch") {
+        alert("Erro de conexão com o Supabase. Verifique sua internet.");
+      }
     } finally {
       setLoading(false);
     }

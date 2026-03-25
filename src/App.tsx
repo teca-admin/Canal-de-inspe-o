@@ -15,14 +15,28 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
+    const handleGlobalError = (event: PromiseRejectionEvent) => {
+      if (event.reason?.message === "Failed to fetch") {
+        console.error("Global Failed to fetch detected:", event.reason);
+        alert("Erro de conexão com o servidor. Verifique sua internet ou se o Supabase está acessível.");
       }
-    });
+    };
+
+    window.addEventListener("unhandledrejection", handleGlobalError);
+
+    // Check active session
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session) {
+          fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        console.error("Supabase getSession error:", err);
+        setLoading(false);
+      });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -34,7 +48,10 @@ export default function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("unhandledrejection", handleGlobalError);
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -56,8 +73,11 @@ export default function App() {
           setActivePage("comprovantes");
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching profile:", err);
+      if (err.message === "Failed to fetch") {
+        alert("Erro de conexão com o Supabase. Verifique sua internet ou se o projeto está ativo.");
+      }
     } finally {
       setLoading(false);
     }

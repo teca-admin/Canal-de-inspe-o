@@ -172,7 +172,11 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       onComplete();
     } catch (err: any) {
       console.error("Error saving training:", err);
-      alert("Erro ao salvar treinamento: " + err.message);
+      if (err.message === "Failed to fetch") {
+        alert("Erro de conexão com o Supabase. Verifique sua internet.");
+      } else {
+        alert("Erro ao salvar treinamento: " + err.message);
+      }
     } finally {
       setSubmitting(false);
     }
