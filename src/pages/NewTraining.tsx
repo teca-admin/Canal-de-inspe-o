@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool } from "lucide-react";
+import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool, Loader2 } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
-import { cn } from "../lib/utils";
+import { cn, maskCPF, unmaskCPF } from "../lib/utils";
+import { supabase } from "../lib/supabase";
 import {
   TrainingType,
   FormType,
@@ -24,6 +25,7 @@ interface NewTrainingProps {
 
 export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
   const [trainee, setTrainee] = useState<TraineeData>({
     nome: "",
     cpf: "",
@@ -40,10 +42,12 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   const [scoresA, setScoresA] = useState<Record<number, number>>({});
   const [scoresB, setScoresB] = useState<Record<number, number>>({});
   const [resultsC, setResultsC] = useState<Record<number, boolean>>({});
+  const [observacoes, setObservacoes] = useState("");
 
   // Timer State
   const [seconds, setSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const [startTime, setStartTime] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Signature
@@ -51,6 +55,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   useEffect(() => {
     if (timerActive) {
+      if (!startTime) setStartTime(new Date().toISOString());
       timerRef.current = setInterval(() => {
         setSeconds((s) => s + 1);
       }, 1000);
@@ -105,6 +110,74 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   const result = calculateResult();
 
+  const handleFinalize = async () => {
+    if (sigPad.current?.isEmpty()) {
+      alert("Por favor, assine o documento.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // 1. Save Signature
+      const sigData = sigPad.current?.getTrimmedCanvas().toDataURL("image/png");
+      let signatureUrl = "";
+      if (sigData) {
+        const blob = await (await fetch(sigData)).blob();
+        const fileName = `signatures/${user.id}/${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from('assinaturas')
+          .upload(fileName, blob);
+        
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('assinaturas')
+          .getPublicUrl(fileName);
+        
+        signatureUrl = publicUrl;
+      }
+
+      // 2. Save Training
+      const { error: insertError } = await supabase
+        .from('treinamentos')
+        .insert({
+          treinador_id: user.id,
+          colaborador_nome: trainee.nome,
+          colaborador_cpf: unmaskCPF(trainee.cpf),
+          colaborador_mat: trainee.matricula,
+          tipo_formulario: config.tipoFormulario,
+          tipo_treinamento: config.tipoTreinamento,
+          local_treinamento: config.local,
+          atividades: config.atividades,
+          iniciado_em: startTime,
+          encerrado_em: new Date().toISOString(),
+          notas_a: scoresA,
+          notas_b: scoresB,
+          resultados_c: resultsC,
+          media_a: result.avgA,
+          media_b: result.avgB,
+          percentual_c: result.pctC,
+          situacao: result.isApto ? 'apto' : 'nao_apto',
+          observacoes: observacoes,
+          assinatura_treinador_url: signatureUrl,
+          status: 'concluido'
+        });
+
+      if (insertError) throw insertError;
+
+      alert("Treinamento finalizado e salvo com sucesso!");
+      onComplete();
+    } catch (err: any) {
+      console.error("Error saving training:", err);
+      alert("Erro ao salvar treinamento: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="page-header">
@@ -140,7 +213,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <input
                   className="w-full p-2.5 border border-border2 focus:border-accent outline-none"
                   value={trainee.cpf}
-                  onChange={(e) => setTrainee({ ...trainee, cpf: e.target.value })}
+                  onChange={(e) => setTrainee({ ...trainee, cpf: maskCPF(e.target.value) })}
                 />
               </div>
               <div className="space-y-1.5">
@@ -391,14 +464,9 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <textarea
                   className="w-full p-3 border border-border2 focus:border-accent outline-none text-[13px] min-h-[100px]"
                   placeholder="Registre observações técnicas, principais pontos abordados..."
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
                 />
-              </Card>
-              <Card title="Anexar Documentos">
-                <p className="text-[12px] text-muted mb-3">CBT, TEFAC, Lista de Presença, Certificações manuais</p>
-                <div className="border-2 border-dashed border-border2 p-6 text-center cursor-pointer hover:bg-surface2 transition-colors">
-                  <Upload className="mx-auto text-hint mb-2" size={24} />
-                  <span className="text-[13px] text-muted">Clique para anexar arquivos PDF</span>
-                </div>
               </Card>
               <Card title="Assinatura Digital do Treinador">
                 <div className="border border-border2 bg-surface relative">
@@ -419,22 +487,25 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                     Limpar
                   </button>
                 </div>
-                <div className="p-2.5 text-[11px] text-muted font-mono">
-                  IP: 192.168.1.100 · Validação automática por endereço IP
-                </div>
               </Card>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-8">
-            <button onClick={handlePrev} className="px-5 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors">
+            <button 
+              onClick={handlePrev} 
+              className="px-5 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors"
+              disabled={submitting}
+            >
               Voltar
             </button>
             <button
-              onClick={onComplete}
+              onClick={handleFinalize}
+              disabled={submitting}
               className="px-5 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-medium transition-colors flex items-center gap-2"
             >
-              <FileText size={16} /> Gerar Comprovante PDF
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+              Finalizar e Salvar Treinamento
             </button>
           </div>
         </div>

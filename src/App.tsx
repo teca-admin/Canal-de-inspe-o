@@ -6,31 +6,79 @@ import { Dashboard } from "./pages/Dashboard";
 import { NewTraining } from "./pages/NewTraining";
 import { Certificates } from "./pages/Certificates";
 import { Users } from "./pages/Users";
-import { TrainingStatus } from "./types";
+import { supabase } from "./lib/supabase";
 
 export default function App() {
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; name: string; role: string } | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Simple login handler
-  const handleLogin = (role: string) => {
-    const users: Record<string, { name: string; role: string }> = {
-      treinador: { name: "Carlos Treinador", role: "treinador" },
-      admin: { name: "Admin Sistema", role: "admin" },
-      cliente: { name: "Cliente ANAC", role: "cliente" },
-    };
-    setUser(users[role] || users.treinador);
-    setActivePage(role === "cliente" ? "comprovantes" : "dashboard");
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        fetchProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setUser({
+          id: data.id,
+          name: data.nome_completo,
+          role: data.perfil
+        });
+        if (data.perfil === "cliente") {
+          setActivePage("comprovantes");
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setActivePage("dashboard");
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return <Login />;
   }
 
   return (

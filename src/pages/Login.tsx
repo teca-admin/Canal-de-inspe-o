@@ -1,21 +1,29 @@
 import React, { useState } from "react";
 import { User, Lock } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
-interface LoginProps {
-  onLogin: (role: string) => void;
-}
-
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [login, setLogin] = useState("");
+export const Login: React.FC = () => {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login && password) {
-      onLogin("treinador");
-    } else {
-      setError(true);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+    } catch (err: any) {
+      setError(err.message || "Erro ao realizar login");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -44,15 +52,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-[12px] font-medium text-text uppercase tracking-wider">
-              Login <span className="text-accent">*</span>
+              E-mail <span className="text-accent">*</span>
             </label>
             <div className="relative">
               <input
-                type="text"
+                type="email"
                 className="w-full p-2.5 pl-10 border border-border2 bg-surface font-sans text-sm outline-none focus:border-accent transition-colors"
-                placeholder="Matrícula ou e-mail"
-                value={login}
-                onChange={(e) => setLogin(e.target.value)}
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
             </div>
@@ -69,6 +78,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
             </div>
@@ -76,43 +86,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           {error && (
             <div className="bg-danger-light border border-red-300 p-2.5 text-[12px] text-danger">
-              Credenciais inválidas. Tente novamente.
+              {error}
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full bg-accent hover:bg-accent-dark text-white py-2.5 text-[13px] font-medium transition-colors"
+            disabled={loading}
+            className="w-full bg-accent hover:bg-accent-dark text-white py-2.5 text-[13px] font-medium transition-colors disabled:opacity-50"
           >
-            Entrar
+            {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
-
-        <div className="mt-7 pt-4 border-t border-border">
-          <p className="text-[11px] text-hint mb-2 font-mono uppercase tracking-wider">
-            ACESSO RÁPIDO (DEMO):
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onLogin("treinador")}
-              className="px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] text-text transition-colors"
-            >
-              👤 Treinador
-            </button>
-            <button
-              onClick={() => onLogin("admin")}
-              className="px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] text-text transition-colors"
-            >
-              🔑 Admin
-            </button>
-            <button
-              onClick={() => onLogin("cliente")}
-              className="px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] text-text transition-colors"
-            >
-              📋 Cliente
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
