@@ -35,7 +35,7 @@ export const Certificates: React.FC = () => {
         .from("treinamentos")
         .select(`
           *,
-          profiles:treinador_id (nome)
+          profiles:treinador_id (nome_completo)
         `)
         .order("encerrado_em", { ascending: false });
 
@@ -59,7 +59,7 @@ export const Certificates: React.FC = () => {
 
       const formattedData = data.map((item: any) => ({
         ...item,
-        treinador_nome: item.profiles?.nome || "N/A",
+        treinador_nome: item.profiles?.nome_completo || "N/A",
       }));
 
       setCertificates(formattedData);

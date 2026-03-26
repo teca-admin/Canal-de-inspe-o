@@ -1,12 +1,79 @@
-import React from "react";
-import { AlertTriangle, TrendingUp, Users, Clock, FileCheck } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { AlertTriangle, TrendingUp, Users, Clock, FileCheck, Plus } from "lucide-react";
 import { cn } from "../lib/utils";
+import { supabase } from "../lib/supabase";
+import { toast } from "sonner";
 
 interface DashboardProps {
   onNewTraining: () => void;
 }
 
+interface DashboardStats {
+  total: number;
+  formacao: number;
+  atualizacao: number;
+  reciclagem: number;
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
+  const [stats, setStats] = useState<DashboardStats>({
+    total: 0,
+    formacao: 0,
+    atualizacao: 0,
+    reciclagem: 0,
+  });
+  const [recentTrainings, setRecentTrainings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterCpf, setFilterCpf] = useState("");
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch stats
+      const { data: allTrainings, error: statsError } = await supabase
+        .from("treinamentos")
+        .select("tipo_treinamento, status");
+
+      if (statsError) throw statsError;
+
+      const newStats = {
+        total: allTrainings?.length || 0,
+        formacao: allTrainings?.filter(t => t.tipo_treinamento === 'formacao' && t.status === 'em_andamento').length || 0,
+        atualizacao: allTrainings?.filter(t => t.tipo_treinamento === 'atualizacao' && t.status === 'em_andamento').length || 0,
+        reciclagem: allTrainings?.filter(t => t.tipo_treinamento === 'reciclagem' && t.status === 'em_andamento').length || 0,
+      };
+      setStats(newStats);
+
+      // Fetch recent trainings
+      const { data: recent, error: recentError } = await supabase
+        .from("treinamentos")
+        .select(`
+          *,
+          profiles:treinador_id (nome_completo)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (recentError) throw recentError;
+      setRecentTrainings(recent || []);
+
+    } catch (error) {
+      console.error("Erro ao carregar dashboard:", error);
+      toast.error("Erro ao carregar dados da dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTrainings = recentTrainings.filter(t => 
+    t.colaborador_cpf.includes(filterCpf)
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -17,32 +84,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
           </p>
         </div>
         <div className="flex gap-2">
-          <button className="flex-1 sm:flex-none px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors">
-            Exportar
+          <button 
+            onClick={fetchDashboardData}
+            className="flex-1 sm:flex-none px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors"
+          >
+            Atualizar
           </button>
           <button
             onClick={onNewTraining}
             className="flex-1 sm:flex-none px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-medium transition-colors flex items-center justify-center gap-1.5"
           >
-            <PlusIcon size={14} /> Novo
+            <Plus size={14} /> Novo
           </button>
         </div>
       </div>
 
+      {/* Alerta de Vencimento (Lógica simplificada para o exemplo) */}
       <div className="bg-warning-light border-l-4 border-warning p-4 flex gap-3">
         <AlertTriangle className="text-warning shrink-0" size={20} />
         <div className="text-[13px] text-text">
-          <strong className="text-warning">Alerta:</strong> 2 colaboradores com
-          certificação próxima do vencimento (menos de 200 dias). Verifique a
-          lista abaixo.
+          <strong className="text-warning">Informativo:</strong> Acompanhe abaixo os treinamentos mais recentes registrados no sistema.
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Treinamentos" value="48" detail="Últimos 30 dias" />
-        <StatCard label="Formação" value="12" detail="Em andamento" accent />
-        <StatCard label="Atualização" value="23" detail="Em andamento" />
-        <StatCard label="Reciclagem" value="13" detail="Em andamento" />
+        <StatCard label="Total Treinamentos" value={stats.total.toString()} detail="Registrados no sistema" />
+        <StatCard label="Formação" value={stats.formacao.toString()} detail="Em andamento" accent />
+        <StatCard label="Atualização" value={stats.atualizacao.toString()} detail="Em andamento" />
+        <StatCard label="Reciclagem" value={stats.reciclagem.toString()} detail="Em andamento" />
       </div>
 
       <div className="bg-surface border border-border shadow-sm">
@@ -53,6 +122,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
           <input
             className="w-full sm:w-[180px] p-1.5 px-2.5 text-[12px] border border-border2 outline-none focus:border-accent"
             placeholder="Filtrar por CPF..."
+            value={filterCpf}
+            onChange={(e) => setFilterCpf(e.target.value)}
           />
         </div>
         <div className="overflow-x-auto">
@@ -83,47 +154,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              <TableRow
-                name="João Silva"
-                cpf="123.456.789-00"
-                type="Formação"
-                location="Canal de Inspeção PAX"
-                trainer="Carlos Treinador"
-                hours="28h / 40h"
-                status="Em Andamento"
-                statusColor="yellow"
-              />
-              <TableRow
-                name="Maria Costa"
-                cpf="987.654.321-00"
-                type="Atualização"
-                location="Controle de Acesso PAX"
-                trainer="Ana Treinadora"
-                hours="8h / 12h"
-                status="Apto"
-                statusColor="green"
-              />
-              <TableRow
-                name="Pedro Alves"
-                cpf="456.123.789-00"
-                type="Reciclagem"
-                location="Raio-X e Esteira"
-                trainer="Carlos Treinador"
-                hours="—"
-                status="Não Apto"
-                statusColor="red"
-              />
-              <TableRow
-                name="Luisa Ramos"
-                cpf="321.654.987-00"
-                type="Atualização"
-                location="Proteção da Aeronave"
-                trainer="Ana Treinadora"
-                hours="11h / 12h"
-                status="180 dias restantes"
-                statusColor="yellow"
-                warning
-              />
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-10 text-center text-muted text-[13px]">
+                    Carregando dados...
+                  </td>
+                </tr>
+              ) : filteredTrainings.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-10 text-center text-muted text-[13px]">
+                    Nenhum treinamento encontrado.
+                  </td>
+                </tr>
+              ) : (
+                filteredTrainings.map((t) => (
+                  <TableRow
+                    key={t.id}
+                    name={t.colaborador_nome}
+                    cpf={t.colaborador_cpf}
+                    type={t.tipo_treinamento}
+                    location={t.local_treinamento}
+                    trainer={t.profiles?.nome_completo || "N/A"}
+                    hours={`${Math.floor(t.horas_acumuladas / 3600)}h / ${Math.floor(t.horas_necessarias / 3600)}h`}
+                    status={t.status === 'em_andamento' ? 'Em Andamento' : 'Concluído'}
+                    statusColor={t.status === 'em_andamento' ? 'yellow' : 'green'}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
