@@ -1,8 +1,113 @@
-import React from "react";
-import { Download, Mail, Search } from "lucide-react";
-import { cn } from "../lib/utils";
+import React, { useState, useEffect } from "react";
+import { Download, Mail, Search, Loader2 } from "lucide-react";
+import { cn, maskCPF, unmaskCPF } from "../lib/utils";
+import { supabase } from "../lib/supabase";
+import { toast } from "sonner";
+
+interface Certificate {
+  id: string;
+  colaborador_nome: string;
+  colaborador_cpf: string;
+  tipo_treinamento: string;
+  situacao: string;
+  treinador_nome?: string;
+  iniciado_em: string;
+  encerrado_em: string;
+  prazo_dias?: number;
+  status: string;
+}
 
 export const Certificates: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [filters, setFilters] = useState({
+    cpf: "",
+    tipo: "Todos",
+    situacao: "Todos",
+  });
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const fetchCertificates = async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from("treinamentos")
+        .select(`
+          *,
+          profiles:treinador_id (nome)
+        `)
+        .order("encerrado_em", { ascending: false });
+
+      if (filters.cpf) {
+        query = query.eq("colaborador_cpf", unmaskCPF(filters.cpf));
+      }
+      if (filters.tipo !== "Todos") {
+        query = query.eq("tipo_treinamento", filters.tipo.toLowerCase());
+      }
+      if (filters.situacao !== "Todos") {
+        if (filters.situacao === "Em Andamento") {
+          query = query.eq("status", "em_andamento");
+        } else {
+          query = query.eq("situacao", filters.situacao.toLowerCase());
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const formattedData = data.map((item: any) => ({
+        ...item,
+        treinador_nome: item.profiles?.nome || "N/A",
+      }));
+
+      setCertificates(formattedData);
+    } catch (err: any) {
+      toast.error("Erro ao buscar certificados: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCertificates();
+  }, []);
+
+  const handleCpfChange = async (val: string) => {
+    const masked = maskCPF(val);
+    setFilters({ ...filters, cpf: masked });
+
+    if (val.length >= 3) {
+      const { data } = await supabase
+        .from("treinamentos")
+        .select("colaborador_cpf")
+        .ilike("colaborador_cpf", `${unmaskCPF(val)}%`)
+        .limit(5);
+      
+      if (data) {
+        const uniqueCpfs = Array.from(new Set(data.map(d => maskCPF(d.colaborador_cpf))));
+        setSuggestions(uniqueCpfs);
+        setShowSuggestions(true);
+      }
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const calculateExpiration = (dateStr: string, days?: number) => {
+    if (!days) return "—";
+    const date = new Date(dateStr);
+    const expirationDate = new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diffTime = expirationDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return "Expirado";
+    return `${diffDays} dias`;
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header">
@@ -18,31 +123,67 @@ export const Certificates: React.FC = () => {
         </div>
         <div className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <label className="text-[12px] font-medium uppercase tracking-wider">CPF do Colaborador</label>
-              <input className="w-full p-2.5 border border-border2 focus:border-accent outline-none text-sm" placeholder="000.000.000-00" />
+              <input 
+                className="w-full p-2.5 border border-border2 focus:border-accent outline-none text-sm" 
+                placeholder="000.000.000-00" 
+                value={filters.cpf}
+                onChange={(e) => handleCpfChange(e.target.value)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-10 w-full bg-surface border border-border shadow-lg mt-1 max-h-40 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-surface2 transition-colors border-b border-border last:border-0"
+                      onClick={() => {
+                        setFilters({ ...filters, cpf: s });
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-[12px] font-medium uppercase tracking-wider">Tipo de Treinamento</label>
-              <select className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm">
+              <select 
+                className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
+                value={filters.tipo}
+                onChange={(e) => setFilters({ ...filters, tipo: e.target.value })}
+              >
                 <option>Todos</option>
-                <option>Formação</option>
-                <option>Atualização</option>
-                <option>Reciclagem</option>
-                <option>Proficiência</option>
+                <option value="formacao">Formação</option>
+                <option value="atualizacao">Atualização</option>
+                <option value="reciclagem">Reciclagem</option>
+                <option value="proficiencia">Proficiência</option>
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[12px] font-medium uppercase tracking-wider">Situação</label>
-              <select className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm">
+              <select 
+                className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
+                value={filters.situacao}
+                onChange={(e) => setFilters({ ...filters, situacao: e.target.value })}
+              >
                 <option>Todos</option>
-                <option>Apto</option>
-                <option>Não Apto</option>
+                <option value="apto">Apto</option>
+                <option value="nao_apto">Não Apto</option>
+                <option value="Em Andamento">Em Andamento</option>
               </select>
             </div>
           </div>
-          <button className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center gap-2 transition-colors">
-            <Search size={14} /> Buscar
+          <button 
+            onClick={fetchCertificates}
+            disabled={loading}
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Buscar
           </button>
         </div>
       </div>
@@ -62,37 +203,31 @@ export const Certificates: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              <CertificateRow
-                name="Maria Costa"
-                cpf="987.654.321-00"
-                type="Atualização"
-                status="Apto"
-                statusColor="green"
-                trainer="Ana Treinadora"
-                date="15/01/2026"
-                expires="530 dias"
-              />
-              <CertificateRow
-                name="Pedro Alves"
-                cpf="456.123.789-00"
-                type="Reciclagem"
-                status="Não Apto"
-                statusColor="red"
-                trainer="Carlos Treinador"
-                date="10/01/2026"
-                expires="—"
-              />
-              <CertificateRow
-                name="Luisa Ramos"
-                cpf="321.654.987-00"
-                type="Atualização"
-                status="Em Andamento"
-                statusColor="yellow"
-                trainer="Ana Treinadora"
-                date="20/12/2025"
-                expires="180 dias"
-                warning
-              />
+              {certificates.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-muted text-sm">
+                    Nenhum certificado encontrado.
+                  </td>
+                </tr>
+              ) : (
+                certificates.map((cert) => (
+                  <CertificateRow
+                    key={cert.id}
+                    name={cert.colaborador_nome}
+                    cpf={maskCPF(cert.colaborador_cpf)}
+                    type={cert.tipo_treinamento}
+                    status={cert.status === 'em_andamento' ? 'Em Andamento' : cert.situacao}
+                    statusColor={
+                      cert.status === 'em_andamento' ? 'yellow' : 
+                      cert.situacao === 'apto' ? 'green' : 'red'
+                    }
+                    trainer={cert.treinador_nome || "N/A"}
+                    date={new Date(cert.encerrado_em || cert.iniciado_em).toLocaleDateString()}
+                    expires={calculateExpiration(cert.encerrado_em || cert.iniciado_em, cert.prazo_dias)}
+                    warning={cert.status === 'em_andamento'}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -101,17 +236,7 @@ export const Certificates: React.FC = () => {
   );
 };
 
-const CertificateRow = ({
-  name,
-  cpf,
-  type,
-  status,
-  statusColor,
-  trainer,
-  date,
-  expires,
-  warning,
-}: {
+const CertificateRow: React.FC<{
   name: string;
   cpf: string;
   type: string;
@@ -121,6 +246,16 @@ const CertificateRow = ({
   date: string;
   expires: string;
   warning?: boolean;
+}> = ({
+  name,
+  cpf,
+  type,
+  status,
+  statusColor,
+  trainer,
+  date,
+  expires,
+  warning,
 }) => (
   <tr className={cn("hover:bg-surface2 transition-colors", warning && "bg-warning-light/30")}>
     <td className="p-3 px-4">

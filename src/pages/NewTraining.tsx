@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool, Loader2 } from "lucide-react";
+import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool, Loader2, Clock } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "sonner";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
@@ -53,6 +53,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   // Signature
   const sigPad = useRef<SignatureCanvas>(null);
+  const [hasSignature, setHasSignature] = useState(false);
 
   useEffect(() => {
     if (timerActive) {
@@ -67,6 +68,13 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [timerActive]);
+
+  const isComplete = 
+    trainee.nome && trainee.cpf && trainee.matricula && config.local &&
+    Object.keys(scoresA).length === CRITERIA_A.length &&
+    Object.keys(scoresB).length === CRITERIA_B.length &&
+    Object.keys(resultsC).length >= 20 &&
+    hasSignature;
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
@@ -110,6 +118,55 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   };
 
   const result = calculateResult();
+
+  const handleSaveOngoing = async () => {
+    setSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      let horasNecessarias = 0;
+      let prazoDias = 0;
+
+      if (config.tipoTreinamento === TrainingType.FORMACAO || config.tipoTreinamento === TrainingType.TROCA_POSTO) {
+        horasNecessarias = 40 * 3600; // 40 hours in seconds
+        prazoDias = 30;
+      } else if (config.tipoTreinamento === TrainingType.ATUALIZACAO) {
+        horasNecessarias = 12 * 3600; // 12 hours base
+        prazoDias = 180;
+      }
+
+      const { error: insertError } = await supabase
+        .from('treinamentos')
+        .insert({
+          treinador_id: user.id,
+          colaborador_nome: trainee.nome,
+          colaborador_cpf: unmaskCPF(trainee.cpf),
+          colaborador_mat: trainee.matricula,
+          tipo_formulario: config.tipoFormulario,
+          tipo_treinamento: config.tipoTreinamento,
+          local_treinamento: config.local,
+          atividades: config.atividades,
+          iniciado_em: new Date().toISOString(),
+          horas_acumuladas: seconds,
+          horas_necessarias: horasNecessarias,
+          prazo_dias: prazoDias,
+          status: 'em_andamento',
+          notas_a: scoresA,
+          notas_b: scoresB,
+          resultados_c: resultsC
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("Treinamento iniciado e salvo em andamento!");
+      onComplete();
+    } catch (err: any) {
+      toast.error("Erro ao salvar treinamento: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleFinalize = async () => {
     if (sigPad.current?.isEmpty()) {
@@ -498,14 +555,20 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                     ref={sigPad}
                     penColor="#111827"
                     canvasProps={{ className: "w-full h-[120px] cursor-crosshair" }}
+                    onEnd={() => setHasSignature(true)}
                   />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-[12px] text-hint font-mono">
-                    Assine aqui
-                  </div>
+                  {!hasSignature && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-[12px] text-hint font-mono">
+                      Assine aqui
+                    </div>
+                  )}
                 </div>
                 <div className="p-2 bg-surface2 border-t border-border flex justify-end gap-2">
                   <button
-                    onClick={() => sigPad.current?.clear()}
+                    onClick={() => {
+                      sigPad.current?.clear();
+                      setHasSignature(false);
+                    }}
                     className="px-2.5 py-1 bg-surface border border-border text-[11px] font-medium hover:bg-surface3"
                   >
                     Limpar
@@ -524,13 +587,23 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
               Voltar
             </button>
             <button
-              onClick={handleFinalize}
+              onClick={handleSaveOngoing}
               disabled={submitting}
-              className="px-5 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-medium transition-colors flex items-center gap-2"
+              className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium transition-colors flex items-center gap-2"
             >
-              {submitting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-              Finalizar e Salvar Treinamento
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
+              Salvar como Em Andamento
             </button>
+            {isComplete && (
+              <button
+                onClick={handleFinalize}
+                disabled={submitting}
+                className="px-5 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-medium transition-colors flex items-center gap-2"
+              >
+                {submitting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                Finalizar e Salvar Treinamento
+              </button>
+            )}
           </div>
         </div>
       )}

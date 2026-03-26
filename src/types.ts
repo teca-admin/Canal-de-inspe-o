@@ -44,6 +44,36 @@ export interface EvaluationC {
   results: Record<number, boolean>; // index -> identified (true/false)
 }
 
+export interface OngoingTraining {
+  id: string;
+  treinador_id: string;
+  colaborador_nome: string;
+  colaborador_cpf: string;
+  colaborador_mat: string;
+  tipo_treinamento: TrainingType;
+  tipo_formulario: FormType;
+  local_treinamento: string;
+  status: "em_andamento" | "concluido";
+  horas_acumuladas: number; // in seconds
+  horas_necessarias: number; // in seconds
+  prazo_dias: number;
+  iniciado_em: string;
+  data_treinamento_anterior?: string;
+  notas_a: Record<number, number>;
+  notas_b: Record<number, number>;
+  resultados_c: Record<number, boolean>;
+  created_at: string;
+}
+
+export interface TrainingSessionRecord {
+  id: string;
+  training_id: string;
+  inicio: string;
+  fim?: string;
+  duracao_segundos: number;
+  created_at: string;
+}
+
 export interface TrainingSession {
   id: string;
   treinadorId: string;

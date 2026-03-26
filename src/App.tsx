@@ -10,6 +10,8 @@ import { supabase } from "./lib/supabase";
 import { Shield, Loader2 } from "lucide-react";
 import { Toaster } from "sonner";
 
+import { OngoingTrainings } from "./pages/OngoingTrainings";
+
 export default function App() {
   const [user, setUser] = useState<{ id: string; name: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -421,12 +423,7 @@ export default function App() {
             {activePage === "novoTreinamento" && <NewTraining onComplete={() => setActivePage("comprovantes")} />}
             {activePage === "comprovantes" && <Certificates />}
             {activePage === "usuarios" && user && <Users currentUser={user} />}
-            {activePage === "avaliacoes" && (
-              <div className="page-header">
-                <h2 className="text-xl font-semibold">Treinamentos em Andamento</h2>
-                <p className="text-muted mt-1">Funcionalidade em desenvolvimento...</p>
-              </div>
-            )}
+            {activePage === "avaliacoes" && <OngoingTrainings />}
           </div>
         </main>
       </div>
