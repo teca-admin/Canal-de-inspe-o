@@ -219,8 +219,13 @@ export default function App() {
           toastOptions={{
             style: {
               borderRadius: '0px',
-              border: '1px solid #e5e7eb',
+              border: '2px solid #111827',
               fontFamily: 'Inter, sans-serif',
+              boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
+              fontSize: '12px',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
             },
           }}
         />
@@ -328,8 +333,13 @@ export default function App() {
           toastOptions={{
             style: {
               borderRadius: '0px',
-              border: '1px solid #e5e7eb',
+              border: '2px solid #111827',
               fontFamily: 'Inter, sans-serif',
+              boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
+              fontSize: '12px',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
             },
           }}
         />
@@ -387,8 +397,13 @@ export default function App() {
         toastOptions={{
           style: {
             borderRadius: '0px',
-            border: '1px solid #e5e7eb',
+            border: '2px solid #111827',
             fontFamily: 'Inter, sans-serif',
+            boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
+            fontSize: '12px',
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
           },
         }}
       />

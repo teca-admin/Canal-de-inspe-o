@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserPlus, Shield, Loader2, FileText, X, ExternalLink, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmationModal } from "../components/ConfirmationModal";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 
@@ -26,6 +27,8 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState<"users" | "devices">("users");
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [userToRemove, setUserToRemove] = useState<string | null>(null);
 
   // Form state
   const [perfil, setPerfil] = useState("");
@@ -92,7 +95,12 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   };
 
   const handleRemoveDevice = async (userId: string) => {
-    if (!confirm("Tem certeza que deseja remover este dispositivo? O usuário perderá o acesso imediato e precisará de uma nova aprovação.")) return;
+    setUserToRemove(userId);
+    setConfirmModalOpen(true);
+  };
+
+  const executeRemoveDevice = async () => {
+    if (!userToRemove) return;
     
     try {
       const { error } = await supabase
@@ -101,13 +109,15 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
           device_id: null,
           device_approved: false 
         })
-        .eq('id', userId);
+        .eq('id', userToRemove);
       
       if (error) throw error;
       toast.success("Dispositivo removido com sucesso!");
       fetchUsers();
     } catch (err: any) {
       toast.error("Erro ao remover dispositivo: " + err.message);
+    } finally {
+      setUserToRemove(null);
     }
   };
 
@@ -661,6 +671,17 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmModalOpen}
+        onClose={() => setConfirmModalOpen(false)}
+        onConfirm={executeRemoveDevice}
+        title="Remover Dispositivo"
+        message="Tem certeza que deseja remover este dispositivo? O usuário perderá o acesso imediato e precisará de uma nova aprovação manual para entrar novamente."
+        confirmText="Sim, Remover"
+        cancelText="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 };
