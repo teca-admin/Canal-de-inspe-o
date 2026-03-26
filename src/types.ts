@@ -65,6 +65,17 @@ export interface OngoingTraining {
   created_at: string;
 }
 
+export interface ActivityHistoryRecord {
+  id: string;
+  treinamento_id: string;
+  colaborador_id?: string;
+  nome_atividade: string;
+  hora_inicio: string;
+  hora_fim: string;
+  tempo_execucao: number;
+  created_at: string;
+}
+
 export interface TrainingSessionRecord {
   id: string;
   training_id: string;

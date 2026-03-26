@@ -52,12 +52,24 @@ CREATE TABLE public.sessoes_treinamento (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Habilitar RLS (Row Level Security)
+-- 4. Tabela de Histórico de Atividades
+CREATE TABLE public.historico_atividades (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    treinamento_id UUID REFERENCES public.treinamentos(id) ON DELETE CASCADE,
+    nome_atividade TEXT NOT NULL,
+    hora_inicio TIMESTAMPTZ NOT NULL,
+    hora_fim TIMESTAMPTZ NOT NULL,
+    tempo_execucao INTEGER NOT NULL, -- em segundos
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Habilitar RLS (Row Level Security)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.treinamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessoes_treinamento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.historico_atividades ENABLE ROW LEVEL SECURITY;
 
--- 5. Políticas para Profiles
+-- 6. Políticas para Profiles
 CREATE POLICY "Perfis são visíveis por usuários autenticados" 
 ON public.profiles FOR SELECT 
 USING (auth.role() = 'authenticated');
@@ -101,7 +113,16 @@ CREATE POLICY "Qualquer autenticado pode gerenciar sessões"
 ON public.sessoes_treinamento FOR ALL 
 USING (auth.role() = 'authenticated');
 
--- 8. Storage (Buckets para Assinaturas e Certificações)
+-- 8. Políticas para Histórico de Atividades
+CREATE POLICY "Histórico é visível por usuários autenticados" 
+ON public.historico_atividades FOR SELECT 
+USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Qualquer autenticado pode inserir no histórico" 
+ON public.historico_atividades FOR INSERT 
+WITH CHECK (auth.role() = 'authenticated');
+
+-- 9. Storage (Buckets para Assinaturas e Certificações)
 -- Estes comandos criam os buckets se eles não existirem
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('assinaturas', 'assinaturas', true)

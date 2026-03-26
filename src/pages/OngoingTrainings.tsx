@@ -9,6 +9,8 @@ export const OngoingTrainings: React.FC = () => {
   const [trainings, setTrainings] = useState<OngoingTraining[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTraining, setSelectedTraining] = useState<OngoingTraining | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<string>("");
+  const [activityHistory, setActivityHistory] = useState<any[]>([]);
   const [activeSession, setActiveSession] = useState<TrainingSessionRecord | null>(null);
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isEditingEvals, setIsEditingEvals] = useState(false);
@@ -69,6 +71,27 @@ export const OngoingTrainings: React.FC = () => {
     }
   };
 
+  const fetchActivityHistory = async (trainingId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('historico_atividades')
+        .select('*')
+        .eq('treinamento_id', trainingId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setActivityHistory(data || []);
+    } catch (err: any) {
+      console.error("Erro ao carregar histórico:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedTraining) {
+      fetchActivityHistory(selectedTraining.id);
+    }
+  }, [selectedTraining]);
+
   // Fetch ongoing trainings
   const fetchTrainings = async () => {
     setLoading(true);
@@ -108,6 +131,11 @@ export const OngoingTrainings: React.FC = () => {
   }, [activeSession]);
 
   const handleStartSession = async (training: OngoingTraining) => {
+    if (!selectedActivity) {
+      toast.error("Selecione uma atividade para iniciar.");
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('sessoes_treinamento')
@@ -122,7 +150,7 @@ export const OngoingTrainings: React.FC = () => {
       if (error) throw error;
       setActiveSession(data);
       setSelectedTraining(training);
-      toast.success("Sessão iniciada!");
+      toast.success(`Sessão iniciada para: ${selectedActivity}`);
     } catch (err: any) {
       toast.error("Erro ao iniciar sessão: " + err.message);
     }
@@ -143,6 +171,19 @@ export const OngoingTrainings: React.FC = () => {
 
       if (sessionError) throw sessionError;
 
+      // Save to historico_atividades
+      const { error: historyError } = await supabase
+        .from('historico_atividades')
+        .insert({
+          treinamento_id: selectedTraining.id,
+          nome_atividade: selectedActivity,
+          hora_inicio: activeSession.inicio,
+          hora_fim: endTime,
+          tempo_execucao: sessionSeconds
+        });
+
+      if (historyError) throw historyError;
+
       // Update accumulated hours in training
       const newAccumulated = (selectedTraining.horas_acumuladas || 0) + sessionSeconds;
       const { error: trainingError } = await supabase
@@ -154,9 +195,11 @@ export const OngoingTrainings: React.FC = () => {
 
       if (trainingError) throw trainingError;
 
-      toast.success("Sessão encerrada e tempo acumulado!");
+      toast.success("Sessão encerrada e histórico registrado!");
       setActiveSession(null);
+      setSelectedActivity("");
       fetchTrainings(); // Refresh list
+      fetchActivityHistory(selectedTraining.id);
     } catch (err: any) {
       toast.error("Erro ao encerrar sessão: " + err.message);
     }
@@ -199,7 +242,7 @@ export const OngoingTrainings: React.FC = () => {
                 <Clock size={24} />
               </div>
               <div>
-                <div className="text-[11px] text-accent font-bold uppercase tracking-wider">Sessão em Andamento</div>
+                <div className="text-[11px] text-accent font-bold uppercase tracking-wider">Sessão em Andamento: {selectedActivity}</div>
                 <div className="text-lg font-bold text-text">{selectedTraining.colaborador_nome}</div>
                 <div className="text-[12px] text-muted">{selectedTraining.tipo_treinamento} — {selectedTraining.local_treinamento}</div>
               </div>
@@ -264,15 +307,40 @@ export const OngoingTrainings: React.FC = () => {
                 <AlertCircle size={14} />
                 <span>Início: {new Date(training.iniciado_em).toLocaleDateString()}</span>
               </div>
+              
+              {!activeSession && (
+                <div className="pt-2">
+                  <select
+                    className="w-full p-2 border border-border2 text-[11px] bg-surface outline-none focus:border-accent"
+                    value={selectedTraining?.id === training.id ? selectedActivity : ""}
+                    onChange={(e) => {
+                      setSelectedTraining(training);
+                      setSelectedActivity(e.target.value);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="">Selecione a atividade...</option>
+                    {(training as any).atividades?.map((act: string) => (
+                      <option key={act} value={act}>{act}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {!activeSession && (
               <button
+                disabled={selectedTraining?.id !== training.id || !selectedActivity}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleStartSession(training);
                 }}
-                className="w-full py-2 bg-surface2 hover:bg-accent hover:text-white border border-border2 text-[12px] font-bold flex items-center justify-center gap-2 transition-all"
+                className={cn(
+                  "w-full py-2 border text-[12px] font-bold flex items-center justify-center gap-2 transition-all",
+                  selectedTraining?.id === training.id && selectedActivity
+                    ? "bg-accent text-white border-accent hover:bg-accent-dark"
+                    : "bg-surface2 border-border2 text-muted cursor-not-allowed"
+                )}
               >
                 <Play size={14} fill="currentColor" /> INICIAR SESSÃO
               </button>
@@ -305,6 +373,25 @@ export const OngoingTrainings: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted border-b pb-2">Histórico de Atividades</h4>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                {activityHistory.length === 0 ? (
+                  <div className="text-[12px] text-muted italic">Nenhuma atividade registrada.</div>
+                ) : (
+                  activityHistory.map((hist) => (
+                    <div key={hist.id} className="p-3 bg-surface2 border border-border rounded">
+                      <div className="text-[11px] font-bold text-accent uppercase">{hist.nome_atividade}</div>
+                      <div className="text-[13px] font-medium mt-1">{formatDuration(hist.tempo_execucao)}</div>
+                      <div className="text-[10px] text-muted mt-1">
+                        {new Date(hist.hora_inicio).toLocaleString()} — {new Date(hist.hora_fim).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted border-b pb-2">Informações Gerais</h4>
               <div className="space-y-3">
                 <DetailItem label="Colaborador" value={selectedTraining.colaborador_nome} />
@@ -332,63 +419,63 @@ export const OngoingTrainings: React.FC = () => {
                   Tempo restante: {formatDuration(Math.max((selectedTraining.horas_necessarias || 0) - (selectedTraining.horas_acumuladas || 0), 0))}
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">Avaliações</h4>
-                <button 
-                  onClick={() => setIsEditingEvals(!isEditingEvals)}
-                  className="text-[10px] text-accent hover:underline font-bold uppercase"
-                >
-                  {isEditingEvals ? "Salvar" : "Editar"}
-                </button>
+              
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between border-b pb-2 mb-4">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">Avaliações</h4>
+                  <button 
+                    onClick={() => setIsEditingEvals(!isEditingEvals)}
+                    className="text-[10px] text-accent hover:underline font-bold uppercase"
+                  >
+                    {isEditingEvals ? "Salvar" : "Editar"}
+                  </button>
+                </div>
+                {isEditingEvals ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted uppercase">Média A (0-10)</label>
+                      <input 
+                        type="number" 
+                        className="w-full p-2 border border-border text-sm"
+                        value={calculateAvg(selectedTraining.notas_a)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateEval('notas_a', { 0: val });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted uppercase">Média B (0-10)</label>
+                      <input 
+                        type="number" 
+                        className="w-full p-2 border border-border text-sm"
+                        value={calculateAvg(selectedTraining.notas_b)}
+                        onChange={(e) => handleUpdateEval('notas_b', { 0: parseFloat(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted uppercase">Percentual C (%)</label>
+                      <input 
+                        type="number" 
+                        className="w-full p-2 border border-border text-sm"
+                        value={calculatePctC(selectedTraining.resultados_c)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          const mockResults: Record<number, boolean> = {};
+                          for(let i=0; i<20; i++) mockResults[i] = i < (val/100)*20;
+                          handleUpdateEval('resultados_c', mockResults);
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <EvalBox label="A" score={calculateAvg(selectedTraining.notas_a)} min={7} />
+                    <EvalBox label="B" score={calculateAvg(selectedTraining.notas_b)} min={7} />
+                    <EvalBox label="C" score={calculatePctC(selectedTraining.resultados_c)} min={70} isPct />
+                  </div>
+                )}
               </div>
-              {isEditingEvals ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted uppercase">Média A (0-10)</label>
-                    <input 
-                      type="number" 
-                      className="w-full p-2 border border-border text-sm"
-                      value={calculateAvg(selectedTraining.notas_a)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        handleUpdateEval('notas_a', { 0: val });
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted uppercase">Média B (0-10)</label>
-                    <input 
-                      type="number" 
-                      className="w-full p-2 border border-border text-sm"
-                      value={calculateAvg(selectedTraining.notas_b)}
-                      onChange={(e) => handleUpdateEval('notas_b', { 0: parseFloat(e.target.value) })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted uppercase">Percentual C (%)</label>
-                    <input 
-                      type="number" 
-                      className="w-full p-2 border border-border text-sm"
-                      value={calculatePctC(selectedTraining.resultados_c)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        const mockResults: Record<number, boolean> = {};
-                        for(let i=0; i<20; i++) mockResults[i] = i < (val/100)*20;
-                        handleUpdateEval('resultados_c', mockResults);
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  <EvalBox label="A" score={calculateAvg(selectedTraining.notas_a)} min={7} />
-                  <EvalBox label="B" score={calculateAvg(selectedTraining.notas_b)} min={7} />
-                  <EvalBox label="C" score={calculatePctC(selectedTraining.resultados_c)} min={70} isPct />
-                </div>
-              )}
             </div>
           </div>
 

@@ -99,14 +99,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
         </div>
       </div>
 
-      {/* Alerta de Vencimento (Lógica simplificada para o exemplo) */}
-      <div className="bg-warning-light border-l-4 border-warning p-4 flex gap-3">
-        <AlertTriangle className="text-warning shrink-0" size={20} />
-        <div className="text-[13px] text-text">
-          <strong className="text-warning">Informativo:</strong> Acompanhe abaixo os treinamentos mais recentes registrados no sistema.
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total Treinamentos" value={stats.total.toString()} detail="Registrados no sistema" />
         <StatCard label="Formação" value={stats.formacao.toString()} detail="Em andamento" accent />
