@@ -448,7 +448,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {users.filter(u => u.perfil !== 'admin').map((u: any) => (
+                {users.map((u: any) => (
                   <tr key={u.id} className="hover:bg-surface2 transition-colors">
                     <td className="p-3 px-4 text-[13px] font-medium">
                       <div>{u.nome_completo}</div>
@@ -479,7 +479,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
                     </td>
                   </tr>
                 ))}
-                {users.filter(u => u.perfil !== 'admin').length === 0 && (
+                {users.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-muted text-sm italic">
                       Nenhum dispositivo registrado.

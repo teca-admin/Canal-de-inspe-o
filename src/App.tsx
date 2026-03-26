@@ -135,27 +135,40 @@ export default function App() {
 
       if (data) {
         const currentDeviceId = getDeviceId();
+        const isMasterAdmin = data.perfil === 'admin' && authUser?.email === 'grupoorbital.teca@gmail.com';
         
         // Device Approval Logic
-        if (data.perfil !== 'admin') { // Admins bypass device check for now or auto-approve
-          if (!data.device_id) {
-            // First time login on this account, register device and wait for approval
-            await supabase.from('profiles').update({ device_id: currentDeviceId, device_approved: false }).eq('id', userId);
-            setDevicePending(true);
-            setLoading(false);
-            return;
-          } else if (data.device_id !== currentDeviceId) {
-            // Different device, update and wait for approval
-            await supabase.from('profiles').update({ device_id: currentDeviceId, device_approved: false }).eq('id', userId);
-            setDevicePending(true);
-            setLoading(false);
-            return;
-          } else if (!data.device_approved) {
-            // Same device but not approved yet
+        // If device is not registered yet
+        if (!data.device_id) {
+          await supabase.from('profiles').update({ 
+            device_id: currentDeviceId, 
+            device_approved: isMasterAdmin // Auto-approve only the master admin on first login
+          }).eq('id', userId);
+          
+          if (!isMasterAdmin) {
             setDevicePending(true);
             setLoading(false);
             return;
           }
+        } 
+        // If device changed
+        else if (data.device_id !== currentDeviceId) {
+          await supabase.from('profiles').update({ 
+            device_id: currentDeviceId, 
+            device_approved: isMasterAdmin // Master admin can switch devices freely
+          }).eq('id', userId);
+          
+          if (!isMasterAdmin) {
+            setDevicePending(true);
+            setLoading(false);
+            return;
+          }
+        } 
+        // If same device but not approved
+        else if (!data.device_approved && !isMasterAdmin) {
+          setDevicePending(true);
+          setLoading(false);
+          return;
         }
 
         setUser({
