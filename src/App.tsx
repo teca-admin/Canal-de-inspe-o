@@ -108,6 +108,8 @@ export default function App() {
     console.log("Fetching profile for userId:", userId);
     setLoading(true);
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -118,7 +120,6 @@ export default function App() {
         console.error("Profile fetch error details:", error);
         
         // Se der erro de recursão ou não encontrar, tentamos identificar o usuário logado
-        const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
           setNeedsProfile({ id: authUser.id, email: authUser.email || "" });
           
