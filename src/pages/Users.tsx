@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserPlus, Shield, Loader2, FileText, X, ExternalLink, Eye } from "lucide-react";
+import { toast } from "sonner";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 
@@ -53,7 +54,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
     } catch (err: any) {
       console.error("Error fetching users:", err);
       if (err.message === "Failed to fetch") {
-        alert("Erro de conexão com o Supabase. Verifique sua internet.");
+        toast.error("Erro de conexão com o Supabase. Verifique sua internet.");
       }
     } finally {
       setLoading(false);
@@ -68,9 +69,10 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         .eq('id', userId);
       
       if (error) throw error;
+      toast.success("Dispositivo aprovado com sucesso!");
       fetchUsers();
     } catch (err: any) {
-      alert("Erro ao aprovar dispositivo: " + err.message);
+      toast.error("Erro ao aprovar dispositivo: " + err.message);
     }
   };
 
@@ -82,9 +84,10 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         .eq('id', userId);
       
       if (error) throw error;
+      toast.success("Dispositivo bloqueado com sucesso!");
       fetchUsers();
     } catch (err: any) {
-      alert("Erro ao bloquear dispositivo: " + err.message);
+      toast.error("Erro ao bloquear dispositivo: " + err.message);
     }
   };
 
@@ -101,9 +104,10 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         .eq('id', userId);
       
       if (error) throw error;
+      toast.success("Dispositivo removido com sucesso!");
       fetchUsers();
     } catch (err: any) {
-      alert("Erro ao remover dispositivo: " + err.message);
+      toast.error("Erro ao remover dispositivo: " + err.message);
     }
   };
 
@@ -137,7 +141,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!perfil || !nome || !cpf || !cargo || !email || !senha) {
-      alert("Por favor, preencha todos os campos obrigatórios.");
+      toast.error("Por favor, preencha todos os campos obrigatórios.");
       return;
     }
 
@@ -195,7 +199,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
 
         if (profileError) throw profileError;
 
-        alert("Usuário cadastrado com sucesso!");
+        toast.success("Usuário cadastrado com sucesso!");
         setShowForm(false);
         fetchUsers();
         // Reset form
@@ -211,9 +215,9 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
     } catch (err: any) {
       console.error("Error creating user:", err);
       if (err.message?.includes("rate limit exceeded")) {
-        alert("Limite de tentativas excedido. Por favor, aguarde alguns minutos antes de tentar cadastrar um novo usuário. Esta é uma medida de segurança do servidor.");
+        toast.error("Limite de tentativas excedido. Por favor, aguarde alguns minutos.");
       } else {
-        alert("Erro ao cadastrar usuário: " + err.message);
+        toast.error("Erro ao cadastrar usuário: " + err.message);
       }
     } finally {
       setSubmitting(false);

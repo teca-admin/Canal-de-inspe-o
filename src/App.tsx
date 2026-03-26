@@ -212,7 +212,18 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-        <Toaster position="top-right" />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            style: {
+              borderRadius: '0px',
+              border: '1px solid #e5e7eb',
+              fontFamily: 'Inter, sans-serif',
+            },
+          }}
+        />
       </div>
     );
   }
@@ -286,7 +297,18 @@ export default function App() {
             </button>
           </div>
         </div>
-        <Toaster position="top-right" />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            style: {
+              borderRadius: '0px',
+              border: '1px solid #e5e7eb',
+              fontFamily: 'Inter, sans-serif',
+            },
+          }}
+        />
       </div>
     );
   }
@@ -299,7 +321,18 @@ export default function App() {
           onRepairProfile={repairProfile}
           isRepairing={loading}
         />
-        <Toaster position="top-right" />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            style: {
+              borderRadius: '0px',
+              border: '1px solid #e5e7eb',
+              fontFamily: 'Inter, sans-serif',
+            },
+          }}
+        />
       </>
     );
   }
@@ -347,7 +380,18 @@ export default function App() {
           </div>
         </main>
       </div>
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        richColors 
+        closeButton
+        toastOptions={{
+          style: {
+            borderRadius: '0px',
+            border: '1px solid #e5e7eb',
+            fontFamily: 'Inter, sans-serif',
+          },
+        }}
+      />
     </div>
   );
 }

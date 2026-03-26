@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool, Loader2 } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
+import { toast } from "sonner";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import {
@@ -77,7 +78,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   const handleNext = () => {
     if (step === 1) {
       if (!trainee.nome || !trainee.cpf || !trainee.matricula || !config.local) {
-        alert("Preencha todos os campos obrigatórios.");
+        toast.error("Preencha todos os campos obrigatórios.");
         return;
       }
     }
@@ -112,7 +113,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   const handleFinalize = async () => {
     if (sigPad.current?.isEmpty()) {
-      alert("Por favor, assine o documento.");
+      toast.error("Por favor, assine o documento.");
       return;
     }
 
@@ -168,14 +169,14 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
       if (insertError) throw insertError;
 
-      alert("Treinamento finalizado e salvo com sucesso!");
+      toast.success("Treinamento finalizado e salvo com sucesso!");
       onComplete();
     } catch (err: any) {
       console.error("Error saving training:", err);
       if (err.message === "Failed to fetch") {
-        alert("Erro de conexão com o Supabase. Verifique sua internet.");
+        toast.error("Erro de conexão com o Supabase. Verifique sua internet.");
       } else {
-        alert("Erro ao salvar treinamento: " + err.message);
+        toast.error("Erro ao salvar treinamento: " + err.message);
       }
     } finally {
       setSubmitting(false);
