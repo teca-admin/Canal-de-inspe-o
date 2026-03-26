@@ -13,13 +13,24 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [needsProfile, setNeedsProfile] = useState<{ id: string; email: string } | null>(null);
+  const [devicePending, setDevicePending] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const getDeviceId = () => {
+    let id = localStorage.getItem("device_id");
+    if (!id) {
+      id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem("device_id", id);
+    }
+    return id;
+  };
 
   const repairProfile = async () => {
     if (!needsProfile) return;
     setLoading(true);
     try {
+      const deviceId = getDeviceId();
       const { error } = await supabase
         .from('profiles')
         .insert({
@@ -28,10 +39,17 @@ export default function App() {
           cpf: '00000000000',
           cargo: 'Administrador (Auto-gerado)',
           perfil: 'admin',
-          ativo: true
+          ativo: true,
+          device_id: deviceId,
+          device_approved: true // Auto-approve first admin
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes("row-level security")) {
+          throw new Error("Erro de Permissão (RLS): Você precisa configurar as políticas de segurança no Supabase para permitir a criação de perfis. Execute o SQL de configuração no painel do Supabase.");
+        }
+        throw error;
+      }
       
       setAuthError(null);
       setNeedsProfile(null);
@@ -75,6 +93,7 @@ export default function App() {
         fetchProfile(session.user.id);
       } else {
         setUser(null);
+        setDevicePending(false);
         setLoading(false);
       }
     });
@@ -108,11 +127,36 @@ export default function App() {
       }
 
       if (data) {
+        const currentDeviceId = getDeviceId();
+        
+        // Device Approval Logic
+        if (data.perfil !== 'admin') { // Admins bypass device check for now or auto-approve
+          if (!data.device_id) {
+            // First time login on this account, register device and wait for approval
+            await supabase.from('profiles').update({ device_id: currentDeviceId, device_approved: false }).eq('id', userId);
+            setDevicePending(true);
+            setLoading(false);
+            return;
+          } else if (data.device_id !== currentDeviceId) {
+            // Different device, update and wait for approval
+            await supabase.from('profiles').update({ device_id: currentDeviceId, device_approved: false }).eq('id', userId);
+            setDevicePending(true);
+            setLoading(false);
+            return;
+          } else if (!data.device_approved) {
+            // Same device but not approved yet
+            setDevicePending(true);
+            setLoading(false);
+            return;
+          }
+        }
+
         setUser({
           id: data.id,
           name: data.nome_completo,
           role: data.perfil
         });
+        setDevicePending(false);
         if (data.perfil === "cliente") {
           setActivePage("comprovantes");
         }
@@ -121,8 +165,6 @@ export default function App() {
       console.error("Error fetching profile:", err);
       setAuthError(err.message || "Erro ao carregar perfil");
       
-      // Only sign out if it's NOT a missing profile error
-      // This allows the user to stay authenticated so we can "repair" the profile
       if (err.message && !err.message.includes("Perfil não encontrado")) {
         await supabase.auth.signOut();
       }
@@ -141,6 +183,37 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+
+  if (devicePending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg p-6">
+        <div className="bg-surface border border-border p-8 max-w-md w-full text-center space-y-6 shadow-xl">
+          <div className="w-16 h-16 bg-warning-light rounded-full flex items-center justify-center mx-auto">
+            <Shield className="text-warning" size={32} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-text">Aguardando Aprovação</h2>
+            <p className="text-sm text-muted">
+              Este dispositivo ainda não foi aprovado para acesso ao sistema corporativo.
+            </p>
+          </div>
+          <div className="bg-surface2 p-4 border border-border2 text-left space-y-2">
+            <div className="text-[10px] uppercase font-bold text-hint tracking-widest">ID do Dispositivo</div>
+            <div className="font-mono text-[11px] break-all text-text">{getDeviceId()}</div>
+          </div>
+          <p className="text-[12px] text-muted italic">
+            Entre em contato com o administrador para solicitar a liberação deste dispositivo.
+          </p>
+          <button 
+            onClick={handleLogout}
+            className="w-full py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors"
+          >
+            Sair do Sistema
+          </button>
+        </div>
       </div>
     );
   }
@@ -175,7 +248,7 @@ export default function App() {
           {activePage === "dashboard" && <Dashboard onNewTraining={() => setActivePage("novoTreinamento")} />}
           {activePage === "novoTreinamento" && <NewTraining onComplete={() => setActivePage("comprovantes")} />}
           {activePage === "comprovantes" && <Certificates />}
-          {activePage === "usuarios" && <Users />}
+          {activePage === "usuarios" && user && <Users currentUser={user} />}
           {activePage === "avaliacoes" && (
             <div className="page-header">
               <h2 className="text-xl font-semibold">Treinamentos em Andamento</h2>

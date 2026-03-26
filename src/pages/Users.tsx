@@ -14,13 +14,18 @@ interface Profile {
   certificacoes?: { name: string; url: string }[];
 }
 
-export const Users: React.FC = () => {
+interface UsersProps {
+  currentUser: { id: string; name: string; role: string };
+}
+
+export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState<Profile[]>([]);
-  
-  // Form State
+  const [activeTab, setActiveTab] = useState<"users" | "devices">("users");
+
+  // Form state
   const [perfil, setPerfil] = useState("");
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
@@ -28,7 +33,7 @@ export const Users: React.FC = () => {
   const [experiencia, setExperiencia] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [certs, setCerts] = useState<{ name: string; file: File | null; url?: string }[]>([]);
+  const [certs, setCerts] = useState<{ name: string; file: File | null }[]>([]);
 
   useEffect(() => {
     fetchUsers();
@@ -51,6 +56,21 @@ export const Users: React.FC = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveDevice = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ device_approved: true })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      alert("Dispositivo aprovado com sucesso!");
+      fetchUsers();
+    } catch (err: any) {
+      alert("Erro ao aprovar dispositivo: " + err.message);
     }
   };
 
@@ -167,21 +187,47 @@ export const Users: React.FC = () => {
     <div className="space-y-6">
       <div className="page-header flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-text">Gestão de Usuários</h2>
+          <h2 className="text-xl font-semibold text-text">Gestão de Sistema</h2>
           <p className="text-[13px] text-muted mt-1">
-            Apenas administradores podem criar e gerenciar acessos
+            Administração de usuários e dispositivos autorizados
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center gap-2 transition-colors"
-        >
-          <UserPlus size={16} /> {showForm ? "Fechar Formulário" : "Cadastrar Usuário"}
-        </button>
+        <div className="flex gap-2">
+          <div className="flex bg-surface2 border border-border2 p-1">
+            <button
+              onClick={() => setActiveTab("users")}
+              className={cn(
+                "px-3 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                activeTab === "users" ? "bg-surface text-accent shadow-sm" : "text-hint hover:text-text"
+              )}
+            >
+              Usuários
+            </button>
+            <button
+              onClick={() => setActiveTab("devices")}
+              className={cn(
+                "px-3 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                activeTab === "devices" ? "bg-surface text-accent shadow-sm" : "text-hint hover:text-text"
+              )}
+            >
+              Dispositivos
+            </button>
+          </div>
+          {activeTab === "users" && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center gap-2 transition-colors"
+            >
+              <UserPlus size={16} /> {showForm ? "Fechar" : "Novo Usuário"}
+            </button>
+          )}
+        </div>
       </div>
 
-      {showForm && (
-        <div className="bg-surface border border-border shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+      {activeTab === "users" ? (
+        <>
+          {showForm && (
+            <div className="bg-surface border border-border shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="px-5 py-3.5 border-b border-border">
             <span className="text-[13px] font-semibold text-text">Novo Usuário</span>
           </div>
@@ -342,47 +388,109 @@ export const Users: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-surface border border-border shadow-sm overflow-x-auto">
-        {loading ? (
-          <div className="p-10 flex flex-col items-center justify-center text-muted">
-            <Loader2 className="animate-spin mb-2" size={24} />
-            <p className="text-sm">Carregando usuários...</p>
+          <div className="bg-surface border border-border shadow-sm overflow-x-auto">
+            {loading ? (
+              <div className="p-10 flex flex-col items-center justify-center text-muted">
+                <Loader2 className="animate-spin mb-2" size={24} />
+                <p className="text-sm">Carregando usuários...</p>
+              </div>
+            ) : (
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-surface2">
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">CPF</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Cargo</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Perfil</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {users.map((u) => (
+                    <UserRow
+                      key={u.id}
+                      name={u.nome_completo}
+                      cpf={maskCPF(u.cpf)}
+                      role={u.cargo}
+                      perfil={u.perfil}
+                      status={u.ativo ? "Ativo" : "Inativo"}
+                      isAdmin={u.perfil === "admin"}
+                    />
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-muted text-sm italic">
+                        Nenhum usuário cadastrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
-        ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-surface2">
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">CPF</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Cargo</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Perfil</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {users.map((u) => (
-                <UserRow
-                  key={u.id}
-                  name={u.nome_completo}
-                  cpf={maskCPF(u.cpf)}
-                  role={u.cargo}
-                  perfil={u.perfil}
-                  status={u.ativo ? "Ativo" : "Inativo"}
-                  isAdmin={u.perfil === "admin"}
-                />
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-muted text-sm italic">
-                    Nenhum usuário cadastrado.
-                  </td>
+        </>
+      ) : (
+        <div className="bg-surface border border-border shadow-sm overflow-x-auto">
+          {loading ? (
+            <div className="p-10 flex flex-col items-center justify-center text-muted">
+              <Loader2 className="animate-spin mb-2" size={24} />
+              <p className="text-sm">Carregando dispositivos...</p>
+            </div>
+          ) : (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface2">
+                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
+                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">ID do Dispositivo</th>
+                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
+                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {users.filter(u => u.perfil !== 'admin').map((u: any) => (
+                  <tr key={u.id} className="hover:bg-surface2 transition-colors">
+                    <td className="p-3 px-4 text-[13px] font-medium">
+                      <div>{u.nome_completo}</div>
+                      <div className="text-[11px] text-muted">{u.cargo}</div>
+                    </td>
+                    <td className="p-3 px-4 font-mono text-[11px] text-muted break-all max-w-[200px]">
+                      {u.device_id || <span className="italic text-hint">Não registrado</span>}
+                    </td>
+                    <td className="p-3 px-4">
+                      {u.device_id ? (
+                        <span className={cn("px-2 py-0.5 text-[11px] font-mono font-semibold uppercase", 
+                          u.device_approved ? "bg-success-light text-success" : "bg-warning-light text-warning")}>
+                          {u.device_approved ? "Aprovado" : "Pendente"}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-hint">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 px-4">
+                      {u.device_id && !u.device_approved && (
+                        <button 
+                          onClick={() => handleApproveDevice(u.id)}
+                          className="px-3 py-1 bg-accent hover:bg-accent-dark text-white text-[11px] font-medium transition-colors"
+                        >
+                          Aprovar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {users.filter(u => u.perfil !== 'admin').length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-muted text-sm italic">
+                      Nenhum dispositivo registrado.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 };
