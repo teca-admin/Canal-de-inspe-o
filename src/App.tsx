@@ -135,7 +135,7 @@ export default function App() {
 
       if (data) {
         const currentDeviceId = getDeviceId();
-        const isMasterAdmin = data.perfil === 'admin' && authUser?.email === 'grupoorbital.teca@gmail.com';
+        const isMasterAdmin = data.perfil === 'admin' && authUser?.email === 'testerick@gmail.com';
         
         // Device Approval Logic
         // If device is not registered yet
