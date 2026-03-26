@@ -164,6 +164,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         email,
         password: senha,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             full_name: nome,
           }

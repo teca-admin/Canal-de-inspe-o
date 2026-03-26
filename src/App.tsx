@@ -94,6 +94,47 @@ export default function App() {
       if (session) {
         setAuthError(null);
         fetchProfile(session.user.id);
+
+        // Subscribe to real-time profile changes
+        const profileSubscription = supabase
+          .channel(`profile-changes-${session.user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${session.user.id}`
+            },
+            (payload) => {
+              console.log('Real-time profile update:', payload.new);
+              const data = payload.new;
+              const currentDeviceId = getDeviceId();
+              
+              // Check if device was revoked or changed
+              if (data.device_id !== currentDeviceId || !data.device_approved) {
+                // If it's not the master admin, block access
+                const isMasterAdmin = data.perfil === 'admin' && session.user.email === 'testerick@gmail.com';
+                if (!isMasterAdmin) {
+                  setDevicePending(true);
+                  setUser(null);
+                }
+              } else {
+                // Device approved or restored
+                setDevicePending(false);
+                setUser({
+                  id: data.id,
+                  name: data.nome_completo,
+                  role: data.perfil
+                });
+              }
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(profileSubscription);
+        };
       } else {
         setUser(null);
         setDevicePending(false);
