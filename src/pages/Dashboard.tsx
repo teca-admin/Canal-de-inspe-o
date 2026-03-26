@@ -177,7 +177,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
                     trainer={t.profiles?.nome_completo || "N/A"}
                     hours={`${Math.floor(t.horas_acumuladas / 3600)}h / ${Math.floor(t.horas_necessarias / 3600)}h`}
                     status={t.status === 'em_andamento' ? 'Em Andamento' : 'Concluído'}
-                    statusColor={t.status === 'em_andamento' ? 'yellow' : 'green'}
+                    statusColor={(t.status === 'em_andamento' ? 'yellow' : 'green') as "green" | "red" | "yellow"}
                   />
                 ))
               )}
@@ -211,17 +211,7 @@ const StatCard = ({
   </div>
 );
 
-const TableRow = ({
-  name,
-  cpf,
-  type,
-  location,
-  trainer,
-  hours,
-  status,
-  statusColor,
-  warning,
-}: {
+interface TableRowProps {
   name: string;
   cpf: string;
   type: string;
@@ -231,6 +221,18 @@ const TableRow = ({
   status: string;
   statusColor: "green" | "red" | "yellow";
   warning?: boolean;
+}
+
+const TableRow: React.FC<TableRowProps> = ({
+  name,
+  cpf,
+  type,
+  location,
+  trainer,
+  hours,
+  status,
+  statusColor,
+  warning,
 }) => (
   <tr className={cn("hover:bg-surface2 transition-colors", warning && "bg-warning-light/30")}>
     <td className="p-3 px-4">
