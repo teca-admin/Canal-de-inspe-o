@@ -210,7 +210,11 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
       }
     } catch (err: any) {
       console.error("Error creating user:", err);
-      alert("Erro ao cadastrar usuário: " + err.message);
+      if (err.message?.includes("rate limit exceeded")) {
+        alert("Limite de tentativas excedido. Por favor, aguarde alguns minutos antes de tentar cadastrar um novo usuário. Esta é uma medida de segurança do servidor.");
+      } else {
+        alert("Erro ao cadastrar usuário: " + err.message);
+      }
     } finally {
       setSubmitting(false);
     }
