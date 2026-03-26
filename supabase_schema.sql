@@ -38,6 +38,10 @@ CREATE TABLE public.treinamentos (
     notas_b JSONB DEFAULT '{}',
     resultados_c JSONB DEFAULT '{}',
     assinatura_url TEXT,
+    assinatura_treinador_url TEXT,
+    media_a NUMERIC DEFAULT 0,
+    media_b NUMERIC DEFAULT 0,
+    percentual_c NUMERIC DEFAULT 0,
     observacoes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
