@@ -218,14 +218,12 @@ export default function App() {
           closeButton
           toastOptions={{
             style: {
-              borderRadius: '0px',
-              border: '2px solid #111827',
+              borderRadius: '6px',
+              border: '1px solid #E5E7EB',
               fontFamily: 'Inter, sans-serif',
-              boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
-              fontSize: '12px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              fontSize: '13px',
+              fontWeight: '500',
             },
           }}
         />
@@ -308,9 +306,12 @@ export default function App() {
           closeButton
           toastOptions={{
             style: {
-              borderRadius: '0px',
-              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              border: '1px solid #E5E7EB',
               fontFamily: 'Inter, sans-serif',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              fontSize: '13px',
+              fontWeight: '500',
             },
           }}
         />
@@ -332,14 +333,12 @@ export default function App() {
           closeButton
           toastOptions={{
             style: {
-              borderRadius: '0px',
-              border: '2px solid #111827',
+              borderRadius: '6px',
+              border: '1px solid #E5E7EB',
               fontFamily: 'Inter, sans-serif',
-              boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
-              fontSize: '12px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              fontSize: '13px',
+              fontWeight: '500',
             },
           }}
         />
@@ -396,14 +395,12 @@ export default function App() {
         closeButton
         toastOptions={{
           style: {
-            borderRadius: '0px',
-            border: '2px solid #111827',
+            borderRadius: '6px',
+            border: '1px solid #E5E7EB',
             fontFamily: 'Inter, sans-serif',
-            boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)',
-            fontSize: '12px',
-            fontWeight: '700',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            fontSize: '13px',
+            fontWeight: '500',
           },
         }}
       />
