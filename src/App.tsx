@@ -219,30 +219,72 @@ export default function App() {
 
   if (devicePending) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg p-4 sm:p-6">
-        <div className="bg-surface border border-border p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-xl">
-          <div className="w-16 h-16 bg-warning-light rounded-full flex items-center justify-center mx-auto">
-            <Shield className="text-warning" size={32} />
+      <div className="min-h-screen flex items-center justify-center bg-bg p-4 sm:p-6 font-sans">
+        <div className="bg-surface border-2 border-accent p-6 sm:p-10 max-w-lg w-full shadow-2xl relative overflow-hidden">
+          {/* Security Pattern Background */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-accent opacity-50"></div>
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-accent opacity-50"></div>
+          
+          <div className="space-y-8">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center border border-accent/20">
+                <Shield className="text-accent" size={40} />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black text-accent tracking-tighter uppercase italic">
+                  Acesso Negado
+                </h2>
+                <div className="h-px w-24 bg-accent/30 mx-auto"></div>
+                <p className="text-lg font-bold text-text uppercase tracking-tight mt-4">
+                  Dispositivo não autorizado a acessar o sistema
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-surface2 border border-border2 p-5 space-y-4 relative">
+              <div className="flex justify-between items-center border-b border-border2 pb-2 mb-2">
+                <span className="text-[10px] font-mono font-bold text-hint uppercase tracking-widest">Protocolo de Segurança</span>
+                <span className="text-[10px] font-mono font-bold text-accent uppercase tracking-widest animate-pulse">Bloqueado</span>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[9px] uppercase font-bold text-hint tracking-widest mb-1">Identificador do Terminal (UUID)</div>
+                  <div className="font-mono text-[12px] break-all text-text bg-white p-2 border border-border select-all">
+                    {getDeviceId()}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-hint tracking-widest mb-1">Status de Rede</div>
+                    <div className="text-[11px] font-mono text-success font-bold">CONECTADO</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-hint tracking-widest mb-1">Autorização</div>
+                    <div className="text-[11px] font-mono text-accent font-bold">PENDENTE</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-accent/5 border-l-4 border-accent text-[12px] text-text leading-relaxed">
+                <strong>Aviso de Segurança:</strong> Este terminal não possui as credenciais de hardware necessárias para este nível de acesso. O administrador do sistema foi notificado desta tentativa de conexão.
+              </div>
+              
+              <p className="text-[11px] text-muted text-center italic">
+                Para solicitar autorização, informe o UUID acima ao Departamento de TI.
+              </p>
+            </div>
+
+            <button 
+              onClick={handleLogout}
+              className="w-full py-3 bg-text hover:bg-black text-white text-[12px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 group"
+            >
+              <span>Encerrar Sessão de Segurança</span>
+            </button>
           </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-bold text-text">Aguardando Aprovação</h2>
-            <p className="text-sm text-muted">
-              Este dispositivo ainda não foi aprovado para acesso ao sistema corporativo.
-            </p>
-          </div>
-          <div className="bg-surface2 p-4 border border-border2 text-left space-y-2">
-            <div className="text-[10px] uppercase font-bold text-hint tracking-widest">ID do Dispositivo</div>
-            <div className="font-mono text-[11px] break-all text-text">{getDeviceId()}</div>
-          </div>
-          <p className="text-[12px] text-muted italic">
-            Entre em contato com o administrador para solicitar a liberação deste dispositivo.
-          </p>
-          <button 
-            onClick={handleLogout}
-            className="w-full py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors"
-          >
-            Sair do Sistema
-          </button>
         </div>
         <Toaster position="top-right" />
       </div>

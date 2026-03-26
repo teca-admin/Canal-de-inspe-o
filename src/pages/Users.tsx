@@ -67,10 +67,42 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         .eq('id', userId);
       
       if (error) throw error;
-      alert("Dispositivo aprovado com sucesso!");
       fetchUsers();
     } catch (err: any) {
       alert("Erro ao aprovar dispositivo: " + err.message);
+    }
+  };
+
+  const handleBlockDevice = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ device_approved: false })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      fetchUsers();
+    } catch (err: any) {
+      alert("Erro ao bloquear dispositivo: " + err.message);
+    }
+  };
+
+  const handleRemoveDevice = async (userId: string) => {
+    if (!confirm("Tem certeza que deseja remover este dispositivo? O usuário perderá o acesso imediato e precisará de uma nova aprovação.")) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          device_id: null,
+          device_approved: false 
+        })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      fetchUsers();
+    } catch (err: any) {
+      alert("Erro ao remover dispositivo: " + err.message);
     }
   };
 
@@ -471,14 +503,32 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
                         )}
                       </td>
                       <td className="p-3 px-4">
-                        {u.device_id && !u.device_approved && (
-                          <button 
-                            onClick={() => handleApproveDevice(u.id)}
-                            className="px-3 py-1 bg-accent hover:bg-accent-dark text-white text-[11px] font-medium transition-colors"
-                          >
-                            Aprovar
-                          </button>
-                        )}
+                        <div className="flex gap-2">
+                          {u.device_id && !u.device_approved && (
+                            <button 
+                              onClick={() => handleApproveDevice(u.id)}
+                              className="px-3 py-1 bg-success hover:bg-success-dark text-white text-[11px] font-bold uppercase tracking-wider transition-colors"
+                            >
+                              Aprovar
+                            </button>
+                          )}
+                          {u.device_id && u.device_approved && (
+                            <button 
+                              onClick={() => handleBlockDevice(u.id)}
+                              className="px-3 py-1 bg-warning hover:bg-warning-dark text-white text-[11px] font-bold uppercase tracking-wider transition-colors"
+                            >
+                              Bloquear
+                            </button>
+                          )}
+                          {u.device_id && (
+                            <button 
+                              onClick={() => handleRemoveDevice(u.id)}
+                              className="px-3 py-1 bg-surface2 hover:bg-danger hover:text-white border border-border2 text-muted text-[11px] font-bold uppercase tracking-wider transition-colors"
+                            >
+                              Remover
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
