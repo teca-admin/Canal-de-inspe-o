@@ -47,20 +47,21 @@ export const Login: React.FC<LoginProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+    <div className="min-h-screen flex items-center justify-center bg-bg p-4 relative">
+      <img 
+        src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
+        alt="Logo" 
+        className="absolute top-6 left-6 h-28 w-auto object-contain"
+        referrerPolicy="no-referrer"
+      />
       <div className="bg-surface border border-border p-6 sm:p-10 w-full max-w-[380px] shadow-sm">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-accent flex items-center justify-center text-white text-lg font-bold">
-            CI
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-text leading-tight">
-              Canal de Inspeção
-            </h1>
-            <p className="text-[11px] text-muted font-mono uppercase tracking-[0.06em]">
-              Sistema de Treinamento
-            </p>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-base font-bold text-text leading-tight">
+            Canal de Inspeção
+          </h1>
+          <p className="text-[11px] text-muted font-mono uppercase tracking-[0.06em]">
+            Sistema de Treinamento
+          </p>
         </div>
 
         <h2 className="text-lg font-semibold mb-1.5">Acesso ao Sistema</h2>

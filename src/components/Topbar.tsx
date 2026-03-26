@@ -34,9 +34,12 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         </button>
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-accent flex items-center justify-center text-white text-[13px] font-bold tracking-tighter">
-            CI
-          </div>
+          <img 
+            src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
+            alt="Logo" 
+            className="h-7 w-auto object-contain"
+            referrerPolicy="no-referrer"
+          />
           <div className="hidden sm:block">
             <div className="text-[13px] font-semibold text-text tracking-tight">
               Canal de Inspeção
