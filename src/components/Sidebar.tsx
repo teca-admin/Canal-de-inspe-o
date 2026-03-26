@@ -7,22 +7,37 @@ interface SidebarProps {
   activePage: string;
   onNavigate: (page: string) => void;
   collapsed?: boolean;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   role, 
   activePage, 
   onNavigate,
-  collapsed 
+  collapsed,
+  mobileOpen,
+  onCloseMobile
 }) => {
   const isAdmin = role === "admin";
   const isTrainer = role === "treinador" || isAdmin;
 
   return (
-    <div className={cn(
-      "bg-surface border-r border-border py-5 flex-shrink-0 min-h-[calc(100vh-52px)] transition-all duration-300",
-      collapsed ? "w-[64px]" : "w-[220px]"
-    )}>
+    <>
+      {/* Mobile Overlay */}
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-[90] md:hidden"
+          onClick={onCloseMobile}
+        />
+      )}
+
+      <div className={cn(
+        "bg-surface border-r border-border py-5 flex-shrink-0 transition-all duration-300 z-[95]",
+        "fixed md:sticky top-[52px] h-[calc(100vh-52px)]",
+        collapsed ? "w-[64px]" : "w-[220px]",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
       {isTrainer && (
         <div className="px-4 mb-6">
           {!collapsed && (
@@ -86,6 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       </div>
     </div>
+    </>
   );
 };
 

@@ -48,7 +48,7 @@ export const Login: React.FC<LoginProps> = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-4">
-      <div className="bg-surface border border-border p-10 w-full max-w-[380px] shadow-sm">
+      <div className="bg-surface border border-border p-6 sm:p-10 w-full max-w-[380px] shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 bg-accent flex items-center justify-center text-white text-lg font-bold">
             CI

@@ -192,11 +192,11 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       </div>
 
       {/* Step Indicator */}
-      <div className="flex items-center justify-between max-w-3xl mx-auto mb-10">
+      <div className="flex items-center justify-between max-w-3xl mx-auto mb-10 px-2">
         <StepItem num={1} label="Dados" active={step === 1} done={step > 1} />
-        <div className="flex-1 h-px bg-border2 mx-4" />
+        <div className="flex-1 h-px bg-border2 mx-2 sm:mx-4" />
         <StepItem num={2} label="Avaliação" active={step === 2} done={step > 2} />
-        <div className="flex-1 h-px bg-border2 mx-4" />
+        <div className="flex-1 h-px bg-border2 mx-2 sm:mx-4" />
         <StepItem num={3} label="Resultado" active={step === 3} done={step > 3} />
       </div>
 
@@ -314,17 +314,36 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
       {step === 2 && (
         <div className="space-y-6">
-          <div className="bg-surface border border-border p-6 flex items-center gap-8 shadow-sm">
-            <div>
-              <div className="text-[11px] text-muted font-mono uppercase tracking-wider mb-1">Tempo de Treinamento</div>
-              <div className="text-3xl font-bold font-mono text-text tracking-wider">{formatTime(seconds)}</div>
+          <div className="bg-surface border border-border p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8 shadow-sm">
+            <div className="flex items-center justify-between sm:block">
+              <div>
+                <div className="text-[10px] text-muted font-mono uppercase tracking-wider mb-1">Tempo</div>
+                <div className="text-2xl sm:text-3xl font-bold font-mono text-text tracking-wider">{formatTime(seconds)}</div>
+              </div>
+              <div className="sm:hidden">
+                {!timerActive ? (
+                  <button
+                    onClick={() => setTimerActive(true)}
+                    className="p-2 bg-accent text-white rounded-full"
+                  >
+                    <Play size={20} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setTimerActive(false)}
+                    className="p-2 bg-surface2 border border-border2 text-text rounded-full"
+                  >
+                    <Square size={20} fill="currentColor" />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="text-[12px] text-muted">Colaborador</div>
-              <div className="text-lg font-semibold">{trainee.nome}</div>
-              <div className="text-[12px] font-mono text-muted">CPF: {trainee.cpf}</div>
+            <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-8">
+              <div className="text-[11px] text-muted uppercase tracking-wider">Colaborador</div>
+              <div className="text-base sm:text-lg font-semibold">{trainee.nome}</div>
+              <div className="text-[11px] font-mono text-muted">CPF: {trainee.cpf}</div>
             </div>
-            <div className="flex gap-3">
+            <div className="hidden sm:flex gap-3">
               {!timerActive ? (
                 <button
                   onClick={() => setTimerActive(true)}
@@ -519,16 +538,16 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 };
 
 const StepItem = ({ num, label, active, done }: { num: number; label: string; active: boolean; done: boolean }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex items-center gap-1.5 sm:gap-2">
     <div
       className={cn(
-        "w-6 h-6 flex items-center justify-center text-[11px] font-mono font-bold border transition-all",
+        "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-[11px] font-mono font-bold border transition-all",
         active ? "bg-accent border-accent text-white" : done ? "bg-success border-success text-white" : "bg-surface border-border2 text-hint"
       )}
     >
-      {done ? <Check size={12} /> : num}
+      {done ? <Check size={10} /> : num}
     </div>
-    <span className={cn("text-[12px] whitespace-nowrap", active ? "text-accent font-medium" : done ? "text-success" : "text-hint")}>
+    <span className={cn("text-[11px] sm:text-[12px] whitespace-nowrap", active ? "text-accent font-medium" : done ? "text-success" : "text-hint", "hidden xs:inline")}>
       {label}
     </span>
   </div>

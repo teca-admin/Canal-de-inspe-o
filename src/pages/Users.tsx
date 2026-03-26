@@ -185,15 +185,15 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-text">Gestão de Sistema</h2>
           <p className="text-[13px] text-muted mt-1">
             Administração de usuários e dispositivos autorizados
           </p>
         </div>
-        <div className="flex gap-2">
-          <div className="flex bg-surface2 border border-border2 p-1">
+        <div className="flex flex-col xs:flex-row gap-3">
+          <div className="flex bg-surface2 border border-border2 p-1 w-fit">
             <button
               onClick={() => setActiveTab("users")}
               className={cn(
@@ -216,7 +216,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
           {activeTab === "users" && (
             <button
               onClick={() => setShowForm(!showForm)}
-              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center gap-2 transition-colors"
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <UserPlus size={16} /> {showForm ? "Fechar" : "Novo Usuário"}
             </button>
@@ -388,106 +388,110 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         </div>
       )}
 
-          <div className="bg-surface border border-border shadow-sm overflow-x-auto">
+          <div className="bg-surface border border-border shadow-sm overflow-x-auto scrollbar-thin">
             {loading ? (
               <div className="p-10 flex flex-col items-center justify-center text-muted">
                 <Loader2 className="animate-spin mb-2" size={24} />
                 <p className="text-sm">Carregando usuários...</p>
               </div>
             ) : (
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-surface2">
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">CPF</th>
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Cargo</th>
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Perfil</th>
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
-                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {users.map((u) => (
-                    <UserRow
-                      key={u.id}
-                      name={u.nome_completo}
-                      cpf={maskCPF(u.cpf)}
-                      role={u.cargo}
-                      perfil={u.perfil}
-                      status={u.ativo ? "Ativo" : "Inativo"}
-                      isAdmin={u.perfil === "admin"}
-                    />
-                  ))}
-                  {users.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted text-sm italic">
-                        Nenhum usuário cadastrado.
-                      </td>
+              <div className="min-w-[800px]">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-surface2">
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">CPF</th>
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Cargo</th>
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Perfil</th>
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
+                      <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {users.map((u) => (
+                      <UserRow
+                        key={u.id}
+                        name={u.nome_completo}
+                        cpf={maskCPF(u.cpf)}
+                        role={u.cargo}
+                        perfil={u.perfil}
+                        status={u.ativo ? "Ativo" : "Inativo"}
+                        isAdmin={u.perfil === "admin"}
+                      />
+                    ))}
+                    {users.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted text-sm italic">
+                          Nenhum usuário cadastrado.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>
       ) : (
-        <div className="bg-surface border border-border shadow-sm overflow-x-auto">
+        <div className="bg-surface border border-border shadow-sm overflow-x-auto scrollbar-thin">
           {loading ? (
             <div className="p-10 flex flex-col items-center justify-center text-muted">
               <Loader2 className="animate-spin mb-2" size={24} />
               <p className="text-sm">Carregando dispositivos...</p>
             </div>
           ) : (
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-surface2">
-                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
-                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">ID do Dispositivo</th>
-                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
-                  <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {users.map((u: any) => (
-                  <tr key={u.id} className="hover:bg-surface2 transition-colors">
-                    <td className="p-3 px-4 text-[13px] font-medium">
-                      <div>{u.nome_completo}</div>
-                      <div className="text-[11px] text-muted">{u.cargo}</div>
-                    </td>
-                    <td className="p-3 px-4 font-mono text-[11px] text-muted break-all max-w-[200px]">
-                      {u.device_id || <span className="italic text-hint">Não registrado</span>}
-                    </td>
-                    <td className="p-3 px-4">
-                      {u.device_id ? (
-                        <span className={cn("px-2 py-0.5 text-[11px] font-mono font-semibold uppercase", 
-                          u.device_approved ? "bg-success-light text-success" : "bg-warning-light text-warning")}>
-                          {u.device_approved ? "Aprovado" : "Pendente"}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-hint">—</span>
-                      )}
-                    </td>
-                    <td className="p-3 px-4">
-                      {u.device_id && !u.device_approved && (
-                        <button 
-                          onClick={() => handleApproveDevice(u.id)}
-                          className="px-3 py-1 bg-accent hover:bg-accent-dark text-white text-[11px] font-medium transition-colors"
-                        >
-                          Aprovar
-                        </button>
-                      )}
-                    </td>
+            <div className="min-w-[600px]">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-surface2">
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Usuário</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">ID do Dispositivo</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Status</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
                   </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-muted text-sm italic">
-                      Nenhum dispositivo registrado.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {users.map((u: any) => (
+                    <tr key={u.id} className="hover:bg-surface2 transition-colors">
+                      <td className="p-3 px-4 text-[13px] font-medium">
+                        <div>{u.nome_completo}</div>
+                        <div className="text-[11px] text-muted">{u.cargo}</div>
+                      </td>
+                      <td className="p-3 px-4 font-mono text-[11px] text-muted break-all max-w-[200px]">
+                        {u.device_id || <span className="italic text-hint">Não registrado</span>}
+                      </td>
+                      <td className="p-3 px-4">
+                        {u.device_id ? (
+                          <span className={cn("px-2 py-0.5 text-[11px] font-mono font-semibold uppercase", 
+                            u.device_approved ? "bg-success-light text-success" : "bg-warning-light text-warning")}>
+                            {u.device_approved ? "Aprovado" : "Pendente"}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-hint">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 px-4">
+                        {u.device_id && !u.device_approved && (
+                          <button 
+                            onClick={() => handleApproveDevice(u.id)}
+                            className="px-3 py-1 bg-accent hover:bg-accent-dark text-white text-[11px] font-medium transition-colors"
+                          >
+                            Aprovar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-muted text-sm italic">
+                        Nenhum dispositivo registrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

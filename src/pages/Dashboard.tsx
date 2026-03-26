@@ -9,7 +9,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-text">Dashboard</h2>
           <p className="text-[13px] text-muted mt-1">
@@ -17,14 +17,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
           </p>
         </div>
         <div className="flex gap-2">
-          <button className="px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors">
-            Exportar Dados
+          <button className="flex-1 sm:flex-none px-3 py-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors">
+            Exportar
           </button>
           <button
             onClick={onNewTraining}
-            className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-medium transition-colors flex items-center gap-1.5"
+            className="flex-1 sm:flex-none px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-medium transition-colors flex items-center justify-center gap-1.5"
           >
-            <PlusIcon size={14} /> Novo Treinamento
+            <PlusIcon size={14} /> Novo
           </button>
         </div>
       </div>
@@ -46,12 +46,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
       </div>
 
       <div className="bg-surface border border-border shadow-sm">
-        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <span className="text-[13px] font-semibold text-text">
             Treinamentos Recentes
           </span>
           <input
-            className="w-[180px] p-1.5 px-2.5 text-[12px] border border-border2 outline-none focus:border-accent"
+            className="w-full sm:w-[180px] p-1.5 px-2.5 text-[12px] border border-border2 outline-none focus:border-accent"
             placeholder="Filtrar por CPF..."
           />
         </div>

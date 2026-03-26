@@ -8,6 +8,7 @@ interface TopbarProps {
   onLogout: () => void;
   onToggleSidebar: () => void;
   sidebarCollapsed: boolean;
+  mobileSidebarOpen: boolean;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({ 
@@ -15,16 +16,22 @@ export const Topbar: React.FC<TopbarProps> = ({
   role, 
   onLogout, 
   onToggleSidebar,
-  sidebarCollapsed 
+  sidebarCollapsed,
+  mobileSidebarOpen
 }) => {
   return (
-    <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between sticky top-0 z-100">
-      <div className="flex items-center gap-4">
+    <div className="bg-surface border-b border-border px-4 md:px-6 h-[52px] flex items-center justify-between sticky top-0 z-[100]">
+      <div className="flex items-center gap-3 md:gap-4">
         <button 
           onClick={onToggleSidebar}
           className="p-1.5 hover:bg-surface2 text-muted transition-colors rounded-sm"
         >
-          {sidebarCollapsed ? <Menu size={20} /> : <X size={20} />}
+          <div className="md:hidden">
+            {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </div>
+          <div className="hidden md:block">
+            {sidebarCollapsed ? <Menu size={20} /> : <X size={20} />}
+          </div>
         </button>
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-accent flex items-center justify-center text-white text-[13px] font-bold tracking-tighter">

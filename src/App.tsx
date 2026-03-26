@@ -7,6 +7,8 @@ import { NewTraining } from "./pages/NewTraining";
 import { Certificates } from "./pages/Certificates";
 import { Users } from "./pages/Users";
 import { supabase } from "./lib/supabase";
+import { Shield, Loader2 } from "lucide-react";
+import { Toaster } from "sonner";
 
 export default function App() {
   const [user, setUser] = useState<{ id: string; name: string; role: string } | null>(null);
@@ -16,6 +18,7 @@ export default function App() {
   const [devicePending, setDevicePending] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const getDeviceId = () => {
     let id = localStorage.getItem("device_id");
@@ -201,6 +204,7 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setDevicePending(false);
     setActivePage("dashboard");
   };
 
@@ -208,14 +212,15 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        <Toaster position="top-right" />
       </div>
     );
   }
 
   if (devicePending) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg p-6">
-        <div className="bg-surface border border-border p-8 max-w-md w-full text-center space-y-6 shadow-xl">
+      <div className="min-h-screen flex items-center justify-center bg-bg p-4 sm:p-6">
+        <div className="bg-surface border border-border p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-xl">
           <div className="w-16 h-16 bg-warning-light rounded-full flex items-center justify-center mx-auto">
             <Shield className="text-warning" size={32} />
           </div>
@@ -239,49 +244,68 @@ export default function App() {
             Sair do Sistema
           </button>
         </div>
+        <Toaster position="top-right" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <Login 
-        externalError={authError} 
-        onRepairProfile={repairProfile}
-        isRepairing={loading}
-      />
+      <>
+        <Login 
+          externalError={authError} 
+          onRepairProfile={repairProfile}
+          isRepairing={loading}
+        />
+        <Toaster position="top-right" />
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg">
+    <div className="min-h-screen h-screen flex flex-col bg-bg overflow-hidden">
       <Topbar 
         userName={user.name} 
         role={user.role} 
         onLogout={handleLogout} 
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleSidebar={() => {
+          if (window.innerWidth < 768) {
+            setMobileSidebarOpen(!mobileSidebarOpen);
+          } else {
+            setSidebarCollapsed(!sidebarCollapsed);
+          }
+        }}
         sidebarCollapsed={sidebarCollapsed}
+        mobileSidebarOpen={mobileSidebarOpen}
       />
-      <div className="flex flex-1">
+      <div className="flex flex-1 relative overflow-hidden">
         <Sidebar
           role={user.role}
           activePage={activePage}
-          onNavigate={setActivePage}
+          onNavigate={(page) => {
+            setActivePage(page);
+            setMobileSidebarOpen(false);
+          }}
           collapsed={sidebarCollapsed}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
         />
-        <main className="flex-1 p-7 md:p-8 overflow-auto transition-all duration-300">
-          {activePage === "dashboard" && <Dashboard onNewTraining={() => setActivePage("novoTreinamento")} />}
-          {activePage === "novoTreinamento" && <NewTraining onComplete={() => setActivePage("comprovantes")} />}
-          {activePage === "comprovantes" && <Certificates />}
-          {activePage === "usuarios" && user && <Users currentUser={user} />}
-          {activePage === "avaliacoes" && (
-            <div className="page-header">
-              <h2 className="text-xl font-semibold">Treinamentos em Andamento</h2>
-              <p className="text-muted mt-1">Funcionalidade em desenvolvimento...</p>
-            </div>
-          )}
+        <main className="flex-1 p-4 md:p-8 overflow-auto transition-all duration-300 w-full bg-bg">
+          <div className="max-w-7xl mx-auto">
+            {activePage === "dashboard" && <Dashboard onNewTraining={() => setActivePage("novoTreinamento")} />}
+            {activePage === "novoTreinamento" && <NewTraining onComplete={() => setActivePage("comprovantes")} />}
+            {activePage === "comprovantes" && <Certificates />}
+            {activePage === "usuarios" && user && <Users currentUser={user} />}
+            {activePage === "avaliacoes" && (
+              <div className="page-header">
+                <h2 className="text-xl font-semibold">Treinamentos em Andamento</h2>
+                <p className="text-muted mt-1">Funcionalidade em desenvolvimento...</p>
+              </div>
+            )}
+          </div>
         </main>
       </div>
+      <Toaster position="top-right" />
     </div>
   );
 }

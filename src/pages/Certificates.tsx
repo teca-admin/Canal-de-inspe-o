@@ -47,53 +47,55 @@ export const Certificates: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-surface border border-border shadow-sm overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-surface2">
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Colaborador</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Tipo</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Situação</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Treinador</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Data</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Expira em</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            <CertificateRow
-              name="Maria Costa"
-              cpf="987.654.321-00"
-              type="Atualização"
-              status="Apto"
-              statusColor="green"
-              trainer="Ana Treinadora"
-              date="15/01/2026"
-              expires="530 dias"
-            />
-            <CertificateRow
-              name="Pedro Alves"
-              cpf="456.123.789-00"
-              type="Reciclagem"
-              status="Não Apto"
-              statusColor="red"
-              trainer="Carlos Treinador"
-              date="10/01/2026"
-              expires="—"
-            />
-            <CertificateRow
-              name="Luisa Ramos"
-              cpf="321.654.987-00"
-              type="Atualização"
-              status="Em Andamento"
-              statusColor="yellow"
-              trainer="Ana Treinadora"
-              date="20/12/2025"
-              expires="180 dias"
-              warning
-            />
-          </tbody>
-        </table>
+      <div className="bg-surface border border-border shadow-sm overflow-x-auto scrollbar-thin">
+        <div className="min-w-[900px]">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-surface2">
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Colaborador</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Tipo</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Situação</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Treinador</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Data</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Expira em</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              <CertificateRow
+                name="Maria Costa"
+                cpf="987.654.321-00"
+                type="Atualização"
+                status="Apto"
+                statusColor="green"
+                trainer="Ana Treinadora"
+                date="15/01/2026"
+                expires="530 dias"
+              />
+              <CertificateRow
+                name="Pedro Alves"
+                cpf="456.123.789-00"
+                type="Reciclagem"
+                status="Não Apto"
+                statusColor="red"
+                trainer="Carlos Treinador"
+                date="10/01/2026"
+                expires="—"
+              />
+              <CertificateRow
+                name="Luisa Ramos"
+                cpf="321.654.987-00"
+                type="Atualização"
+                status="Em Andamento"
+                statusColor="yellow"
+                trainer="Ana Treinadora"
+                date="20/12/2025"
+                expires="180 dias"
+                warning
+              />
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
