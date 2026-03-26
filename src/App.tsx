@@ -116,12 +116,19 @@ export default function App() {
 
       if (error) {
         console.error("Profile fetch error details:", error);
-        if (error.code === "PGRST116") {
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          if (authUser) {
-            setNeedsProfile({ id: authUser.id, email: authUser.email || "" });
+        
+        // Se der erro de recursão ou não encontrar, tentamos identificar o usuário logado
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          setNeedsProfile({ id: authUser.id, email: authUser.email || "" });
+          
+          if (error.code === "PGRST116") {
+            throw new Error(`Perfil não encontrado para o usuário ${authUser.email}. O usuário existe no Auth mas não na tabela 'profiles'.`);
           }
-          throw new Error(`Perfil não encontrado para o usuário ${authUser?.email}. O usuário existe no Auth mas não na tabela 'profiles'.`);
+          
+          if (error.message?.includes("infinite recursion")) {
+            throw new Error(`Erro de Recursão (RLS): O banco de dados está em loop. Use o botão abaixo para tentar recriar seu perfil ou aplique o SQL de correção.`);
+          }
         }
         throw error;
       }
@@ -165,7 +172,11 @@ export default function App() {
       console.error("Error fetching profile:", err);
       setAuthError(err.message || "Erro ao carregar perfil");
       
-      if (err.message && !err.message.includes("Perfil não encontrado")) {
+      const isRecoverable = err.message?.includes("Perfil não encontrado") || 
+                           err.message?.includes("Recursão") || 
+                           err.message?.includes("security policy");
+
+      if (!isRecoverable) {
         await supabase.auth.signOut();
       }
     } finally {
