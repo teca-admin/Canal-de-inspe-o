@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserPlus, Edit2, Shield, Loader2, FileText, X } from "lucide-react";
+import { UserPlus, Shield, Loader2, FileText, X, ExternalLink, Eye } from "lucide-react";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 
@@ -24,6 +24,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState<"users" | "devices">("users");
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
 
   // Form state
   const [perfil, setPerfil] = useState("");
@@ -449,6 +450,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
                         perfil={u.perfil}
                         status={u.ativo ? "Ativo" : "Inativo"}
                         isAdmin={u.perfil === "admin"}
+                        onView={() => setSelectedUser(u)}
                       />
                     ))}
                     {users.length === 0 && (
@@ -545,6 +547,112 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
           )}
         </div>
       )}
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-surface border border-border w-full max-w-2xl shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-surface2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
+                  <Eye className="text-accent" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text uppercase tracking-tight">Detalhes do Usuário</h3>
+                  <p className="text-[11px] text-muted font-mono uppercase tracking-widest">{selectedUser.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedUser(null)}
+                className="p-2 hover:bg-surface3 text-muted transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-hint uppercase tracking-widest">Nome Completo</p>
+                  <p className="text-sm font-medium text-text">{selectedUser.nome_completo}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-hint uppercase tracking-widest">CPF</p>
+                  <p className="text-sm font-mono text-text">{maskCPF(selectedUser.cpf)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-hint uppercase tracking-widest">Cargo / Função</p>
+                  <p className="text-sm font-medium text-text">{selectedUser.cargo}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-hint uppercase tracking-widest">Perfil de Acesso</p>
+                  <span className={cn("inline-block px-2 py-0.5 text-[11px] font-mono font-bold uppercase tracking-tight border", 
+                    selectedUser.perfil === "admin" ? "bg-blue-50 text-blue-700 border-blue-200" : 
+                    selectedUser.perfil === "treinador" ? "bg-accent-light text-accent border-accent/20" :
+                    "bg-surface2 border-border text-muted")}>
+                    {selectedUser.perfil}
+                  </span>
+                </div>
+                {selectedUser.experiencia && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-hint uppercase tracking-widest">Experiência</p>
+                    <p className="text-sm font-medium text-text">{selectedUser.experiencia}</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-hint uppercase tracking-widest">Status da Conta</p>
+                  <span className={cn("inline-block px-2 py-0.5 text-[11px] font-mono font-bold uppercase", 
+                    selectedUser.ativo ? "bg-success-light text-success" : "bg-danger-light text-danger")}>
+                    {selectedUser.ativo ? "Ativo" : "Inativo"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-border pb-2">
+                  <FileText size={16} className="text-accent" />
+                  <h4 className="text-[12px] font-bold uppercase tracking-wider text-text">Certificações e Documentos</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  {selectedUser.certificacoes && selectedUser.certificacoes.length > 0 ? (
+                    selectedUser.certificacoes.map((cert, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-surface2 border border-border2 hover:border-accent/30 transition-colors group">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white border border-border2">
+                            <FileText size={16} className="text-danger" />
+                          </div>
+                          <span className="text-[13px] font-medium text-text">{cert.name}</span>
+                        </div>
+                        <a 
+                          href={cert.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-border2 hover:bg-accent hover:text-white hover:border-accent text-[11px] font-bold uppercase tracking-tight transition-all"
+                        >
+                          Visualizar PDF <ExternalLink size={12} />
+                        </a>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center bg-surface2 border border-dashed border-border2">
+                      <p className="text-[12px] text-muted italic">Nenhuma certificação anexada a este perfil.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-border bg-surface2 flex justify-end">
+              <button 
+                onClick={() => setSelectedUser(null)}
+                className="px-6 py-2 bg-text text-white text-[12px] font-bold uppercase tracking-widest hover:bg-black transition-colors"
+              >
+                Fechar Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -556,6 +664,7 @@ interface UserRowProps {
   perfil: string;
   status: string;
   isAdmin?: boolean;
+  onView: () => void;
 }
 
 const UserRow: React.FC<UserRowProps> = ({
@@ -565,6 +674,7 @@ const UserRow: React.FC<UserRowProps> = ({
   perfil,
   status,
   isAdmin,
+  onView,
 }) => (
   <tr className="hover:bg-surface2 transition-colors">
     <td className="p-3 px-4 text-[13px] font-medium">{name}</td>
@@ -585,9 +695,15 @@ const UserRow: React.FC<UserRowProps> = ({
       </span>
     </td>
     <td className="p-3 px-4">
-      <button className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" title="Editar">
-        <Edit2 size={14} />
-      </button>
+      <div className="flex gap-2">
+        <button 
+          onClick={onView}
+          className="p-1.5 bg-surface2 hover:bg-accent hover:text-white border border-border2 text-muted transition-colors" 
+          title="Visualizar Detalhes"
+        >
+          <Eye size={14} />
+        </button>
+      </div>
     </td>
   </tr>
 );
