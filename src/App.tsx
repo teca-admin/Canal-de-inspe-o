@@ -116,7 +116,7 @@ export default function App() {
               // Check if device was revoked or changed
               if (data.device_id !== currentDeviceId || !data.device_approved) {
                 // If it's not the master admin, block access
-                const isMasterAdmin = data.perfil === 'admin' && session.user.email === 'testerick@gmail.com';
+                const isMasterAdmin = data.perfil === 'admin' && session.user.email === 'grupoorbital.teca@gmail.com';
                 if (!isMasterAdmin) {
                   setDevicePending(true);
                   setUser(null);
@@ -182,7 +182,7 @@ export default function App() {
 
       if (data) {
         const currentDeviceId = getDeviceId();
-        const isMasterAdmin = data.perfil === 'admin' && authUser?.email === 'testerick@gmail.com';
+        const isMasterAdmin = data.perfil === 'admin' && authUser?.email === 'grupoorbital.teca@gmail.com';
         
         // Device Approval Logic
         // If device is not registered yet
