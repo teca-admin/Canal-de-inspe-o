@@ -2,11 +2,25 @@ import React, { useState } from "react";
 import { User, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-export const Login: React.FC = () => {
+interface LoginProps {
+  externalError?: string | null;
+  onRepairProfile?: () => void;
+  isRepairing?: boolean;
+}
+
+export const Login: React.FC<LoginProps> = ({ 
+  externalError, 
+  onRepairProfile,
+  isRepairing 
+}) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Use external error if provided
+  const displayError = error || externalError;
+  const isMissingProfile = externalError?.includes("Perfil não encontrado");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,9 +103,19 @@ export const Login: React.FC = () => {
             </div>
           </div>
 
-          {error && (
-            <div className="bg-danger-light border border-red-300 p-2.5 text-[12px] text-danger">
-              {error}
+          {displayError && (
+            <div className="bg-danger-light border border-red-300 p-2.5 text-[12px] text-danger space-y-2">
+              <p>{displayError}</p>
+              {isMissingProfile && onRepairProfile && (
+                <button
+                  type="button"
+                  onClick={onRepairProfile}
+                  disabled={isRepairing}
+                  className="w-full py-1.5 bg-danger text-white font-bold uppercase tracking-wider hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isRepairing ? "Corrigindo..." : "Corrigir Perfil Agora"}
+                </button>
+              )}
             </div>
           )}
 

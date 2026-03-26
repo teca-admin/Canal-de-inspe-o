@@ -11,14 +11,43 @@ import { supabase } from "./lib/supabase";
 export default function App() {
   const [user, setUser] = useState<{ id: string; name: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [needsProfile, setNeedsProfile] = useState<{ id: string; email: string } | null>(null);
   const [activePage, setActivePage] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const repairProfile = async () => {
+    if (!needsProfile) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          id: needsProfile.id,
+          nome_completo: needsProfile.email.split('@')[0],
+          cpf: '00000000000',
+          cargo: 'Administrador (Auto-gerado)',
+          perfil: 'admin',
+          ativo: true
+        });
+
+      if (error) throw error;
+      
+      setAuthError(null);
+      setNeedsProfile(null);
+      fetchProfile(needsProfile.id);
+    } catch (err: any) {
+      console.error("Error repairing profile:", err);
+      setAuthError("Erro ao criar perfil: " + err.message);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handleGlobalError = (event: PromiseRejectionEvent) => {
       if (event.reason?.message === "Failed to fetch") {
         console.error("Global Failed to fetch detected:", event.reason);
-        alert("Erro de conexão com o servidor. Verifique sua internet ou se o Supabase está acessível.");
+        setAuthError("Erro de conexão com o servidor. Verifique sua internet.");
       }
     };
 
@@ -35,12 +64,14 @@ export default function App() {
       })
       .catch(err => {
         console.error("Supabase getSession error:", err);
+        setAuthError("Erro ao verificar sessão: " + (err.message || "Erro desconhecido"));
         setLoading(false);
       });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
+        setAuthError(null);
         fetchProfile(session.user.id);
       } else {
         setUser(null);
@@ -55,6 +86,8 @@ export default function App() {
   }, []);
 
   const fetchProfile = async (userId: string) => {
+    console.log("Fetching profile for userId:", userId);
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -62,7 +95,18 @@ export default function App() {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Profile fetch error details:", error);
+        if (error.code === "PGRST116") {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser) {
+            setNeedsProfile({ id: authUser.id, email: authUser.email || "" });
+          }
+          throw new Error(`Perfil não encontrado para o usuário ${authUser?.email}. O usuário existe no Auth mas não na tabela 'profiles'.`);
+        }
+        throw error;
+      }
+
       if (data) {
         setUser({
           id: data.id,
@@ -75,8 +119,12 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Error fetching profile:", err);
-      if (err.message === "Failed to fetch") {
-        alert("Erro de conexão com o Supabase. Verifique sua internet ou se o projeto está ativo.");
+      setAuthError(err.message || "Erro ao carregar perfil");
+      
+      // Only sign out if it's NOT a missing profile error
+      // This allows the user to stay authenticated so we can "repair" the profile
+      if (err.message && !err.message.includes("Perfil não encontrado")) {
+        await supabase.auth.signOut();
       }
     } finally {
       setLoading(false);
@@ -98,7 +146,13 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return (
+      <Login 
+        externalError={authError} 
+        onRepairProfile={repairProfile}
+        isRepairing={loading}
+      />
+    );
   }
 
   return (
