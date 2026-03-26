@@ -40,6 +40,34 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
   const [senha, setSenha] = useState("");
   const [certs, setCerts] = useState<{ name: string; file: File | null }[]>([]);
 
+  // Form persistence
+  useEffect(() => {
+    const savedForm = localStorage.getItem("user_registration_form");
+    if (savedForm) {
+      try {
+        const parsed = JSON.parse(savedForm);
+        setPerfil(parsed.perfil || "");
+        setNome(parsed.nome || "");
+        setCpf(parsed.cpf || "");
+        setCargo(parsed.cargo || "");
+        setExperiencia(parsed.experiencia || "");
+        setEmail(parsed.email || "");
+        if (parsed.perfil || parsed.nome || parsed.email) {
+          setShowForm(true);
+        }
+      } catch (e) {
+        console.error("Error loading saved form:", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showForm) {
+      const formData = { perfil, nome, cpf, cargo, experiencia, email };
+      localStorage.setItem("user_registration_form", JSON.stringify(formData));
+    }
+  }, [perfil, nome, cpf, cargo, experiencia, email, showForm]);
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -211,6 +239,7 @@ export const Users: React.FC<UsersProps> = ({ currentUser }) => {
         if (profileError) throw profileError;
 
         toast.success("Usuário cadastrado com sucesso!");
+        localStorage.removeItem("user_registration_form");
         setShowForm(false);
         fetchUsers();
         // Reset form
