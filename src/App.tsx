@@ -193,10 +193,15 @@ export default function App() {
         } 
         // If device changed
         else if (data.device_id !== currentDeviceId) {
-          await supabase.from('profiles').update({ 
-            device_id: currentDeviceId, 
-            device_approved: false 
-          }).eq('id', userId);
+          // Only update the device_id in the database if the current one is not approved.
+          // This prevents an unauthorized login attempt from "stealing" the slot and 
+          // blocking the session of a currently authorized device.
+          if (!data.device_approved) {
+            await supabase.from('profiles').update({ 
+              device_id: currentDeviceId, 
+              device_approved: false 
+            }).eq('id', userId);
+          }
           
           setDevicePending(true);
           setLoading(false);
