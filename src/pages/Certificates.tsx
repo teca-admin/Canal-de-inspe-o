@@ -284,10 +284,18 @@ const CertificateRow: React.FC<{
     <td className={cn("p-3 px-4 font-mono text-[12px]", warning && "text-warning font-bold")}>{expires}</td>
     <td className="p-3 px-4">
       <div className="flex gap-2">
-        <button className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" title="Baixar PDF">
+        <button 
+          onClick={() => toast.info(`Gerando PDF para ${name}...`)}
+          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
+          title="Baixar PDF"
+        >
           <Download size={14} />
         </button>
-        <button className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" title="Enviar por E-mail">
+        <button 
+          onClick={() => toast.info(`Enviando comprovante de ${name} por e-mail...`)}
+          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
+          title="Enviar por E-mail"
+        >
           <Mail size={14} />
         </button>
       </div>

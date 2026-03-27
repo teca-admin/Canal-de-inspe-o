@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Play, Square, Clock, AlertCircle, BarChart2, User, FileText, CheckCircle2, XCircle } from "lucide-react";
+import { Play, Square, Clock, AlertCircle, BarChart2, User, FileText, CheckCircle2, XCircle, Search } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { OngoingTraining, TrainingSessionRecord, TrainingType } from "../types";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
+
+import { CRITERIA_A, CRITERIA_B, SCENARIOS_C, ACTIVITIES } from "../constants";
 
 export const OngoingTrainings: React.FC = () => {
   const [trainings, setTrainings] = useState<OngoingTraining[]>([]);
@@ -13,8 +15,14 @@ export const OngoingTrainings: React.FC = () => {
   const [activityHistory, setActivityHistory] = useState<any[]>([]);
   const [activeSession, setActiveSession] = useState<TrainingSessionRecord | null>(null);
   const [sessionSeconds, setSessionSeconds] = useState(0);
+  const [filter, setFilter] = useState("");
   const [isEditingEvals, setIsEditingEvals] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const filteredTrainings = trainings.filter(t => 
+    t.colaborador_nome.toLowerCase().includes(filter.toLowerCase()) ||
+    t.colaborador_cpf.includes(filter)
+  );
 
   const handleUpdateEval = async (field: string, value: any) => {
     if (!selectedTraining) return;
@@ -227,11 +235,23 @@ export const OngoingTrainings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="page-header">
-        <h2 className="text-xl font-semibold text-text">Treinamentos em Andamento</h2>
-        <p className="text-[13px] text-muted mt-1">
-          Gerencie o progresso e as sessões de treinamento dos colaboradores
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="page-header">
+          <h2 className="text-xl font-semibold text-text">Treinamentos em Andamento</h2>
+          <p className="text-[13px] text-muted mt-1">
+            Gerencie o progresso e as sessões de treinamento dos colaboradores
+          </p>
+        </div>
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+          <input
+            type="text"
+            placeholder="Buscar colaborador ou CPF..."
+            className="w-full pl-10 pr-4 py-2 bg-surface border border-border focus:border-accent outline-none text-sm"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
       </div>
 
       {activeSession && selectedTraining && (
@@ -263,104 +283,114 @@ export const OngoingTrainings: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {trainings.map((training) => (
-          <div
-            key={training.id}
-            className={cn(
-              "bg-surface border border-border p-5 hover:border-accent/50 transition-all group cursor-pointer relative overflow-hidden",
-              selectedTraining?.id === training.id && "border-accent ring-1 ring-accent/20"
-            )}
-            onClick={() => setSelectedTraining(training)}
-          >
-            {/* Progress Bar Background */}
-            <div className="absolute bottom-0 left-0 h-1 bg-accent/10 w-full">
-              <div 
-                className="h-full bg-accent transition-all duration-500" 
-                style={{ width: `${calculateProgress(training)}%` }}
-              />
-            </div>
-
-            <div className="flex justify-between items-start mb-4">
-              <div className="space-y-1">
-                <div className="text-[10px] font-mono text-muted uppercase tracking-wider">
-                  {training.tipo_treinamento}
-                </div>
-                <h3 className="text-base font-bold text-text group-hover:text-accent transition-colors">
-                  {training.colaborador_nome}
-                </h3>
-              </div>
-              <div className={cn(
-                "px-2 py-0.5 text-[10px] font-bold rounded uppercase",
-                training.tipo_treinamento === TrainingType.FORMACAO ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-              )}>
-                {calculateProgress(training).toFixed(0)}%
-              </div>
-            </div>
-
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-2 text-[12px] text-muted">
-                <Clock size={14} />
-                <span>{formatDuration(training.horas_acumuladas || 0)} / {formatDuration(training.horas_necessarias || 0)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[12px] text-muted">
-                <AlertCircle size={14} />
-                <span>Início: {new Date(training.iniciado_em).toLocaleDateString()}</span>
-              </div>
-              
-              {!activeSession && (
-                <div className="pt-2">
-                  <select
-                    className="w-full p-2 border border-border2 text-[11px] bg-surface outline-none focus:border-accent"
-                    value={selectedTraining?.id === training.id ? selectedActivity : ""}
-                    onChange={(e) => {
-                      setSelectedTraining(training);
-                      setSelectedActivity(e.target.value);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+      <div className="bg-surface border border-border shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-surface2">
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Colaborador</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Tipo</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Progresso</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Carga Horária</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Início</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredTrainings.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center text-muted text-[13px]">
+                    Nenhum treinamento em andamento encontrado.
+                  </td>
+                </tr>
+              ) : (
+                filteredTrainings.map((training) => (
+                  <tr 
+                    key={training.id} 
+                    className={cn(
+                      "hover:bg-surface2 transition-colors cursor-pointer",
+                      selectedTraining?.id === training.id && "bg-accent/5"
+                    )}
+                    onClick={() => setSelectedTraining(training)}
                   >
-                    <option value="">Selecione a atividade...</option>
-                    {(training as any).atividades?.map((act: string) => (
-                      <option key={act} value={act}>{act}</option>
-                    ))}
-                  </select>
-                </div>
+                    <td className="p-3 px-4">
+                      <div className="text-[13px] font-bold">{training.colaborador_nome}</div>
+                      <div className="text-[11px] font-mono text-muted">{training.colaborador_cpf}</div>
+                    </td>
+                    <td className="p-3 px-4">
+                      <span className="px-2 py-0.5 bg-surface2 border border-border text-[10px] font-mono text-muted uppercase">
+                        {training.tipo_treinamento}
+                      </span>
+                    </td>
+                    <td className="p-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-1.5 bg-surface2 rounded-full overflow-hidden max-w-[100px]">
+                          <div 
+                            className="h-full bg-accent" 
+                            style={{ width: `${calculateProgress(training)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-accent">{calculateProgress(training).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 px-4 text-[12px] font-mono">
+                      {formatDuration(training.horas_acumuladas || 0)} / {formatDuration(training.horas_necessarias || 0)}
+                    </td>
+                    <td className="p-3 px-4 text-[12px] text-muted">
+                      {new Date(training.iniciado_em).toLocaleDateString()}
+                    </td>
+                    <td className="p-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <select 
+                          className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
+                          value={selectedTraining?.id === training.id ? selectedActivity : ""}
+                          onChange={(e) => {
+                            setSelectedTraining(training);
+                            setSelectedActivity(e.target.value);
+                          }}
+                        >
+                          <option value="">Atividade...</option>
+                          {ACTIVITIES.map(act => (
+                            <option key={act} value={act}>{act}</option>
+                          ))}
+                        </select>
+                        <button 
+                          disabled={!!activeSession}
+                          className="p-1.5 bg-accent hover:bg-accent-dark text-white rounded transition-colors disabled:opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartSession(training);
+                          }}
+                          title="Iniciar Sessão"
+                        >
+                          <Play size={14} fill="currentColor" />
+                        </button>
+                        <button 
+                          className="px-3 py-1 bg-surface2 hover:bg-border border border-border2 text-[11px] font-bold transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTraining(training);
+                            setIsEditingEvals(true);
+                            // Scroll to details
+                            setTimeout(() => {
+                              document.getElementById('training-details')?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                        >
+                          AVALIAR
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
-            </div>
-
-            {!activeSession && (
-              <button
-                disabled={selectedTraining?.id !== training.id || !selectedActivity}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStartSession(training);
-                }}
-                className={cn(
-                  "w-full py-2 border text-[12px] font-bold flex items-center justify-center gap-2 transition-all",
-                  selectedTraining?.id === training.id && selectedActivity
-                    ? "bg-accent text-white border-accent hover:bg-accent-dark"
-                    : "bg-surface2 border-border2 text-muted cursor-not-allowed"
-                )}
-              >
-                <Play size={14} fill="currentColor" /> INICIAR SESSÃO
-              </button>
-            )}
-          </div>
-        ))}
-
-        {trainings.length === 0 && (
-          <div className="col-span-full bg-surface border border-dashed border-border p-12 text-center">
-            <div className="w-16 h-16 bg-surface2 rounded-full flex items-center justify-center mx-auto mb-4">
-              <BarChart2 className="text-muted" size={32} />
-            </div>
-            <h3 className="text-lg font-semibold text-text">Nenhum treinamento em andamento</h3>
-            <p className="text-muted text-[13px] mt-1">Inicie um novo treinamento para vê-lo aqui.</p>
-          </div>
-        )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {selectedTraining && (
-        <div className="bg-surface border border-border p-6 shadow-sm">
+        <div id="training-details" className="bg-surface border border-border p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold">Detalhes do Treinamento</h3>
             <button 
@@ -431,41 +461,75 @@ export const OngoingTrainings: React.FC = () => {
                   </button>
                 </div>
                 {isEditingEvals ? (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-muted uppercase">Média A (0-10)</label>
-                      <input 
-                        type="number" 
-                        className="w-full p-2 border border-border text-sm"
-                        value={calculateAvg(selectedTraining.notas_a)}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          handleUpdateEval('notas_a', { 0: val });
-                        }}
-                      />
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação A — Comportamento</h5>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                        {CRITERIA_A.map((criterion, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                            <span className="text-[12px] leading-tight">{criterion}</span>
+                            <input 
+                              type="number" 
+                              min="0" max="10" step="0.5"
+                              className="w-16 p-1 border border-border text-center text-sm"
+                              value={selectedTraining.notas_a?.[idx] || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                const newNotas = { ...(selectedTraining.notas_a || {}), [idx]: val };
+                                handleUpdateEval('notas_a', newNotas);
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-muted uppercase">Média B (0-10)</label>
-                      <input 
-                        type="number" 
-                        className="w-full p-2 border border-border text-sm"
-                        value={calculateAvg(selectedTraining.notas_b)}
-                        onChange={(e) => handleUpdateEval('notas_b', { 0: parseFloat(e.target.value) })}
-                      />
+
+                    <div className="space-y-4">
+                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação B — Detecção</h5>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                        {CRITERIA_B.map((criterion, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                            <span className="text-[12px] leading-tight">{criterion}</span>
+                            <input 
+                              type="number" 
+                              min="0" max="10" step="0.5"
+                              className="w-16 p-1 border border-border text-center text-sm"
+                              value={selectedTraining.notas_b?.[idx] || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                const newNotas = { ...(selectedTraining.notas_b || {}), [idx]: val };
+                                handleUpdateEval('notas_b', newNotas);
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-muted uppercase">Percentual C (%)</label>
-                      <input 
-                        type="number" 
-                        className="w-full p-2 border border-border text-sm"
-                        value={calculatePctC(selectedTraining.resultados_c)}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          const mockResults: Record<number, boolean> = {};
-                          for(let i=0; i<20; i++) mockResults[i] = i < (val/100)*20;
-                          handleUpdateEval('resultados_c', mockResults);
-                        }}
-                      />
+
+                    <div className="space-y-4">
+                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação C — Testes Aleatórios</h5>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                        {SCENARIOS_C.map((scenario, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                            <span className="text-[12px] leading-tight">{scenario}</span>
+                            <select 
+                              className="p-1 border border-border text-sm bg-surface"
+                              value={selectedTraining.resultados_c?.[idx] === undefined ? "" : selectedTraining.resultados_c[idx] ? "hit" : "miss"}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const newResults = { ...(selectedTraining.resultados_c || {}) };
+                                if (val === "") delete newResults[idx];
+                                else newResults[idx] = val === "hit";
+                                handleUpdateEval('resultados_c', newResults);
+                              }}
+                            >
+                              <option value="">—</option>
+                              <option value="hit">✅</option>
+                              <option value="miss">❌</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : (

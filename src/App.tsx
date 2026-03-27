@@ -410,7 +410,12 @@ export default function App() {
         />
         <main className="flex-1 p-4 md:p-8 overflow-auto transition-all duration-300 w-full bg-bg">
           <div className="max-w-7xl mx-auto">
-            {activePage === "dashboard" && <Dashboard onNewTraining={() => setActivePage("novoTreinamento")} />}
+            {activePage === "dashboard" && (
+              <Dashboard 
+                onNewTraining={() => setActivePage("novoTreinamento")} 
+                onViewTraining={(status) => setActivePage(status === 'em_andamento' ? 'avaliacoes' : 'comprovantes')}
+              />
+            )}
             {activePage === "novoTreinamento" && <NewTraining onComplete={() => setActivePage("comprovantes")} />}
             {activePage === "comprovantes" && <Certificates />}
             {activePage === "usuarios" && user && <Users currentUser={user} />}

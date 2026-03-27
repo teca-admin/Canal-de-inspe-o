@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 interface DashboardProps {
   onNewTraining: () => void;
+  onViewTraining: (status: string) => void;
 }
 
 interface DashboardStats {
@@ -15,7 +16,7 @@ interface DashboardStats {
   reciclagem: number;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining, onViewTraining }) => {
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     formacao: 0,
@@ -170,6 +171,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewTraining }) => {
                     hours={`${Math.floor(t.horas_acumuladas / 3600)}h / ${Math.floor(t.horas_necessarias / 3600)}h`}
                     status={t.status === 'em_andamento' ? 'Em Andamento' : 'Concluído'}
                     statusColor={(t.status === 'em_andamento' ? 'yellow' : 'green') as "green" | "red" | "yellow"}
+                    onView={() => onViewTraining(t.status)}
                   />
                 ))
               )}
@@ -212,6 +214,7 @@ interface TableRowProps {
   hours: string;
   status: string;
   statusColor: "green" | "red" | "yellow";
+  onView: () => void;
   warning?: boolean;
 }
 
@@ -224,6 +227,7 @@ const TableRow: React.FC<TableRowProps> = ({
   hours,
   status,
   statusColor,
+  onView,
   warning,
 }) => (
   <tr className={cn("hover:bg-surface2 transition-colors", warning && "bg-warning-light/30")}>
@@ -252,7 +256,10 @@ const TableRow: React.FC<TableRowProps> = ({
       </span>
     </td>
     <td className="p-3 px-4">
-      <button className="px-2.5 py-1 bg-surface2 hover:bg-surface3 border border-border2 text-[11px] font-medium transition-colors">
+      <button 
+        onClick={onView}
+        className="px-2.5 py-1 bg-surface2 hover:bg-surface3 border border-border2 text-[11px] font-medium transition-colors"
+      >
         Ver
       </button>
     </td>

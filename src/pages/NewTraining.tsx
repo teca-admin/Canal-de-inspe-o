@@ -335,11 +335,41 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
       {/* Step Indicator */}
       <div className="flex items-center justify-between max-w-3xl mx-auto mb-10 px-2">
-        <StepItem num={1} label="Dados" active={step === 1} done={step > 1} />
+        <StepItem 
+          num={1} 
+          label="Dados" 
+          active={step === 1} 
+          done={step > 1} 
+          onClick={() => setStep(1)}
+        />
         <div className="flex-1 h-px bg-border2 mx-2 sm:mx-4" />
-        <StepItem num={2} label="Avaliação" active={step === 2} done={step > 2} />
+        <StepItem 
+          num={2} 
+          label="Avaliação" 
+          active={step === 2} 
+          done={step > 2} 
+          onClick={() => {
+            if (trainee.nome && trainee.cpf && trainee.matricula && config.local) {
+              setStep(2);
+            } else {
+              toast.error("Preencha os dados obrigatórios primeiro.");
+            }
+          }}
+        />
         <div className="flex-1 h-px bg-border2 mx-2 sm:mx-4" />
-        <StepItem num={3} label="Resultado" active={step === 3} done={step > 3} />
+        <StepItem 
+          num={3} 
+          label="Resultado" 
+          active={step === 3} 
+          done={step > 3} 
+          onClick={() => {
+            if (Object.keys(scoresA).length === CRITERIA_A.length && Object.keys(scoresB).length === CRITERIA_B.length) {
+              setStep(3);
+            } else {
+              toast.error("Complete as avaliações primeiro.");
+            }
+          }}
+        />
       </div>
 
       {step === 1 && (
@@ -722,20 +752,23 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   );
 };
 
-const StepItem = ({ num, label, active, done }: { num: number; label: string; active: boolean; done: boolean }) => (
-  <div className="flex items-center gap-1.5 sm:gap-2">
+const StepItem = ({ num, label, active, done, onClick }: { num: number; label: string; active: boolean; done: boolean; onClick: () => void }) => (
+  <button 
+    onClick={onClick}
+    className="flex items-center gap-1.5 sm:gap-2 group outline-none"
+  >
     <div
       className={cn(
         "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-[11px] font-mono font-bold border transition-all",
-        active ? "bg-accent border-accent text-white" : done ? "bg-success border-success text-white" : "bg-surface border-border2 text-hint"
+        active ? "bg-accent border-accent text-white" : done ? "bg-success border-success text-white" : "bg-surface border-border2 text-hint group-hover:border-accent"
       )}
     >
       {done ? <Check size={10} /> : num}
     </div>
-    <span className={cn("text-[11px] sm:text-[12px] whitespace-nowrap", active ? "text-accent font-medium" : done ? "text-success" : "text-hint", "hidden xs:inline")}>
+    <span className={cn("text-[11px] sm:text-[12px] whitespace-nowrap", active ? "text-accent font-medium" : done ? "text-success" : "text-hint group-hover:text-accent", "hidden xs:inline")}>
       {label}
     </span>
-  </div>
+  </button>
 );
 
 const Card = ({ title, tag, children }: { title: string; tag?: string; children: React.ReactNode }) => (
