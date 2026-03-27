@@ -53,6 +53,7 @@ CREATE TABLE public.sessoes_treinamento (
     inicio TIMESTAMPTZ NOT NULL,
     fim TIMESTAMPTZ,
     duracao_segundos INTEGER DEFAULT 0,
+    metadata JSONB DEFAULT '{}', -- Armazena atividade e critério da sessão
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -61,6 +62,7 @@ CREATE TABLE public.historico_atividades (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     treinamento_id UUID REFERENCES public.treinamentos(id) ON DELETE CASCADE,
     nome_atividade TEXT NOT NULL,
+    criterio TEXT, -- Critério avaliado (A, B ou C)
     hora_inicio TIMESTAMPTZ NOT NULL,
     hora_fim TIMESTAMPTZ NOT NULL,
     tempo_execucao INTEGER NOT NULL, -- em segundos

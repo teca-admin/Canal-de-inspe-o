@@ -18,9 +18,11 @@ export const OngoingTrainings: React.FC = () => {
   const [selectedCriterion, setSelectedCriterion] = useState<"A" | "B" | "C" | "">("");
   const [activityHistory, setActivityHistory] = useState<any[]>([]);
   const [activeSession, setActiveSession] = useState<TrainingSessionRecord | null>(null);
+  const [activeSessions, setActiveSessions] = useState<Record<string, any>>({});
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [filter, setFilter] = useState("");
   const [isEditingEvals, setIsEditingEvals] = useState(false);
+  const [expandedEval, setExpandedEval] = useState<"A" | "B" | "C" | null>(null);
   const [showFinalizeActivity, setShowFinalizeActivity] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activityToFinalize, setActivityToFinalize] = useState<string>("");
@@ -203,6 +205,8 @@ export const OngoingTrainings: React.FC = () => {
       toast.success("Atividade finalizada com sucesso!");
       setShowFinalizeActivity(false);
       setActivityToFinalize("");
+      setSelectedActivity("");
+      setSelectedCriterion("");
       fetchTrainings();
     } catch (err: any) {
       toast.error("Erro ao finalizar atividade: " + err.message);
@@ -318,6 +322,35 @@ export const OngoingTrainings: React.FC = () => {
 
       if (error) throw error;
       setTrainings(data || []);
+
+      // Fetch all active sessions
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('sessoes_treinamento')
+        .select('*')
+        .is('fim', null);
+
+      if (sessionsError) throw sessionsError;
+      
+      const sessionsMap: Record<string, any> = {};
+      sessions?.forEach(s => {
+        sessionsMap[s.training_id] = s;
+      });
+      setActiveSessions(sessionsMap);
+
+      // If there's an active session for the current user (this client), set it
+      // Note: In a real app, we might want to track which user started which session
+      // For now, if the selected training has an active session, we show it
+      if (selectedTraining && sessionsMap[selectedTraining.id]) {
+        const session = sessionsMap[selectedTraining.id];
+        setActiveSession(session);
+        setSelectedActivity(session.metadata?.atividade || "");
+        setSelectedCriterion(session.metadata?.criterio || "");
+        
+        // Calculate elapsed time
+        const start = new Date(session.inicio).getTime();
+        const now = new Date().getTime();
+        setSessionSeconds(Math.floor((now - start) / 1000));
+      }
     } catch (err: any) {
       toast.error("Erro ao carregar treinamentos: " + err.message);
     } finally {
@@ -369,6 +402,7 @@ export const OngoingTrainings: React.FC = () => {
       if (error) throw error;
       setActiveSession(data);
       setSelectedTraining(training);
+      fetchTrainings(); // Refresh to update activeSessions map
       toast.success(`Sessão iniciada para: ${selectedActivity}`);
     } catch (err: any) {
       toast.error("Erro ao iniciar sessão: " + err.message);
@@ -396,6 +430,7 @@ export const OngoingTrainings: React.FC = () => {
         .insert({
           treinamento_id: selectedTraining.id,
           nome_atividade: selectedActivity,
+          criterio: selectedCriterion,
           hora_inicio: activeSession.inicio,
           hora_fim: endTime,
           tempo_execucao: sessionSeconds
@@ -543,11 +578,20 @@ export const OngoingTrainings: React.FC = () => {
                         setSelectedTraining(training);
                         setSelectedActivity("");
                         setSelectedCriterion("");
+                        setIsEditingEvals(false);
+                        setExpandedEval(null);
                       }
                     }}
                   >
                     <td className="p-3 px-4">
-                      <div className="text-[13px] font-bold">{training.colaborador_nome}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[13px] font-bold">{training.colaborador_nome}</div>
+                        {activeSessions[training.id] && (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 bg-accent text-white text-[9px] font-bold uppercase rounded animate-pulse">
+                            <Play size={10} fill="currentColor" /> EM SESSÃO
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] font-mono text-muted">{training.colaborador_cpf}</div>
                     </td>
                     <td className="p-3 px-4">
@@ -625,11 +669,27 @@ export const OngoingTrainings: React.FC = () => {
                     onChange={(e) => setSelectedActivity(e.target.value)}
                   >
                     <option value="">Selecione a atividade...</option>
-                    {(PHASES.find(p => p.id === (selectedTraining.current_phase || 1))?.activities || []).map(act => (
-                      <option key={act} value={act} disabled={selectedTraining.atividades_status?.[act]?.concluida}>
-                        {act} {selectedTraining.atividades_status?.[act]?.concluida ? "✅" : ""}
-                      </option>
-                    ))}
+                    {(PHASES.find(p => p.id === (selectedTraining.current_phase || 1))?.activities || []).map(act => {
+                      const status = selectedTraining.atividades_status?.[act];
+                      const isCompleted = status?.concluida;
+                      const hasTime = (status?.tempo_segundos || 0) > 0;
+                      const session = activeSessions[selectedTraining.id];
+                      const isActive = session?.metadata?.atividade === act;
+                      
+                      return (
+                        <option 
+                          key={act} 
+                          value={act} 
+                          disabled={isCompleted}
+                          className={cn(
+                            isCompleted && "text-success",
+                            isActive && "font-bold text-accent"
+                          )}
+                        >
+                          {act} {isCompleted ? "✅" : (isActive ? `⏳ (Critério ${session?.metadata?.criterio})` : (hasTime ? "🕒" : ""))}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -637,7 +697,11 @@ export const OngoingTrainings: React.FC = () => {
                   <select 
                     className="w-full p-2 border border-border text-[12px] bg-surface outline-none focus:border-accent"
                     value={selectedCriterion}
-                    onChange={(e) => setSelectedCriterion(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setSelectedCriterion(val);
+                      if (val) setExpandedEval(val);
+                    }}
                   >
                     <option value="">Selecione o critério...</option>
                     <option value="A">Critério A — Comportamento</option>
@@ -660,11 +724,18 @@ export const OngoingTrainings: React.FC = () => {
                   <div className="text-[12px] text-muted italic">Nenhuma atividade registrada.</div>
                 ) : (
                   activityHistory.map((hist) => (
-                    <div key={hist.id} className="p-3 bg-surface2 border border-border rounded">
-                      <div className="text-[11px] font-bold text-accent uppercase">{hist.nome_atividade}</div>
-                      <div className="text-[13px] font-medium mt-1">{formatDuration(hist.tempo_execucao)}</div>
-                      <div className="text-[10px] text-muted mt-1">
-                        {new Date(hist.hora_inicio).toLocaleString()} — {new Date(hist.hora_fim).toLocaleTimeString()}
+                    <div key={hist.id} className="p-3 bg-surface2 border border-border rounded flex flex-col gap-1">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[11px] font-bold text-accent uppercase">{hist.nome_atividade}</span>
+                        <span className="text-[11px] font-mono text-muted">{formatDuration(hist.tempo_execucao)}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-[10px] uppercase font-bold text-muted">
+                          Critério {hist.criterio || 'N/A'}
+                        </span>
+                        <span className="text-[10px] text-hint">
+                          {new Date(hist.hora_inicio).toLocaleTimeString()} — {new Date(hist.hora_fim).toLocaleTimeString()}
+                        </span>
                       </div>
                     </div>
                   ))
@@ -725,7 +796,15 @@ export const OngoingTrainings: React.FC = () => {
                       </button>
                     )}
                     <button 
-                      onClick={() => setIsEditingEvals(!isEditingEvals)}
+                      onClick={() => {
+                        const nextState = !isEditingEvals;
+                        setIsEditingEvals(nextState);
+                        if (nextState && selectedCriterion) {
+                          setExpandedEval(selectedCriterion as any);
+                        } else if (!nextState) {
+                          setExpandedEval(null);
+                        }
+                      }}
                       className="text-[10px] text-accent hover:underline font-bold uppercase"
                     >
                       {isEditingEvals ? "Salvar" : "Editar"}
@@ -740,83 +819,113 @@ export const OngoingTrainings: React.FC = () => {
                       </div>
                     ) : (
                       <>
-                        <div className="space-y-4">
-                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação A — Comportamento</h5>
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                            {CRITERIA_A.map((criterion, idx) => (
-                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                                <span className="text-[12px] leading-tight">{criterion}</span>
-                                <input 
-                                  type="number" 
-                                  min="0" max="10" step="0.5"
-                                  className="w-16 p-1 border border-border text-center text-sm"
-                                  value={selectedTraining.atividades_status?.[selectedActivity]?.notas_a?.[idx] || ""}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
-                                    const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_a || {}), [idx]: val };
-                                    handleUpdateEval('notas_a', newNotas, selectedActivity);
-                                  }}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                        <div className="space-y-2">
+                          <h5 
+                            className="text-[12px] font-bold text-accent uppercase border-b pb-1 cursor-pointer flex justify-between items-center hover:bg-surface2 transition-colors px-1"
+                            onClick={() => setExpandedEval(expandedEval === "A" ? null : "A")}
+                          >
+                            Avaliação A — Comportamento
+                            <span className="text-[10px]">{expandedEval === "A" ? "▲" : "▼"}</span>
+                          </h5>
+                          {expandedEval === "A" && (
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin animate-in slide-in-from-top-2 duration-200">
+                              {CRITERIA_A.map((criterion, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                  <span className="text-[12px] leading-tight">{criterion}</span>
+                                  <input 
+                                    type="number" 
+                                    min="0" max="10" step="0.5"
+                                    className="w-16 p-1 border border-border text-center text-sm"
+                                    value={selectedTraining.atividades_status?.[selectedActivity]?.notas_a?.[idx] || ""}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_a || {}), [idx]: val };
+                                      handleUpdateEval('notas_a', newNotas, selectedActivity);
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
-                        <div className="space-y-4">
-                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação B — Detecção</h5>
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                            {CRITERIA_B.map((criterion, idx) => (
-                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                                <span className="text-[12px] leading-tight">{criterion}</span>
-                                <input 
-                                  type="number" 
-                                  min="0" max="10" step="0.5"
-                                  className="w-16 p-1 border border-border text-center text-sm"
-                                  value={selectedTraining.atividades_status?.[selectedActivity]?.notas_b?.[idx] || ""}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
-                                    const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_b || {}), [idx]: val };
-                                    handleUpdateEval('notas_b', newNotas, selectedActivity);
-                                  }}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                        <div className="space-y-2">
+                          <h5 
+                            className="text-[12px] font-bold text-accent uppercase border-b pb-1 cursor-pointer flex justify-between items-center hover:bg-surface2 transition-colors px-1"
+                            onClick={() => setExpandedEval(expandedEval === "B" ? null : "B")}
+                          >
+                            Avaliação B — Detecção
+                            <span className="text-[10px]">{expandedEval === "B" ? "▲" : "▼"}</span>
+                          </h5>
+                          {expandedEval === "B" && (
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin animate-in slide-in-from-top-2 duration-200">
+                              {CRITERIA_B.map((criterion, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                  <span className="text-[12px] leading-tight">{criterion}</span>
+                                  <input 
+                                    type="number" 
+                                    min="0" max="10" step="0.5"
+                                    className="w-16 p-1 border border-border text-center text-sm"
+                                    value={selectedTraining.atividades_status?.[selectedActivity]?.notas_b?.[idx] || ""}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_b || {}), [idx]: val };
+                                      handleUpdateEval('notas_b', newNotas, selectedActivity);
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
-                        <div className="space-y-4">
-                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação C — Testes Aleatórios</h5>
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                            {SCENARIOS_C.map((scenario, idx) => (
-                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                                <span className="text-[12px] leading-tight">{scenario}</span>
-                                <select 
-                                  className="p-1 border border-border text-sm bg-surface"
-                                  value={selectedTraining.atividades_status?.[selectedActivity]?.resultados_c?.[idx] === undefined ? "" : selectedTraining.atividades_status[selectedActivity].resultados_c[idx] ? "hit" : "miss"}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const newResults = { ...(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c || {}) };
-                                    if (val === "") delete newResults[idx];
-                                    else newResults[idx] = val === "hit";
-                                    handleUpdateEval('resultados_c', newResults, selectedActivity);
-                                  }}
-                                >
-                                  <option value="">—</option>
-                                  <option value="hit">✅</option>
-                                  <option value="miss">❌</option>
-                                </select>
-                              </div>
-                            ))}
-                          </div>
+                        <div className="space-y-2">
+                          <h5 
+                            className="text-[12px] font-bold text-accent uppercase border-b pb-1 cursor-pointer flex justify-between items-center hover:bg-surface2 transition-colors px-1"
+                            onClick={() => setExpandedEval(expandedEval === "C" ? null : "C")}
+                          >
+                            Avaliação C — Testes Aleatórios
+                            <span className="text-[10px]">{expandedEval === "C" ? "▲" : "▼"}</span>
+                          </h5>
+                          {expandedEval === "C" && (
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin animate-in slide-in-from-top-2 duration-200">
+                              {SCENARIOS_C.map((scenario, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                  <span className="text-[12px] leading-tight">{scenario}</span>
+                                  <select 
+                                    className="p-1 border border-border text-sm bg-surface"
+                                    value={selectedTraining.atividades_status?.[selectedActivity]?.resultados_c?.[idx] === undefined ? "" : selectedTraining.atividades_status[selectedActivity].resultados_c[idx] ? "hit" : "miss"}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const newResults = { ...(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c || {}) };
+                                      if (val === "") delete newResults[idx];
+                                      else newResults[idx] = val === "hit";
+                                      handleUpdateEval('resultados_c', newResults, selectedActivity);
+                                    }}
+                                  >
+                                    <option value="">—</option>
+                                    <option value="hit">✅</option>
+                                    <option value="miss">❌</option>
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
-                    <EvalBox label="A" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_a)} min={7} />
-                    <EvalBox label="B" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_b)} min={7} />
-                    <EvalBox label="C" score={calculatePctC(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c)} min={70} isPct />
+                    <div className="cursor-pointer transition-transform active:scale-95" onClick={() => { setIsEditingEvals(true); setExpandedEval("A"); }}>
+                      <EvalBox label="A" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_a)} min={7} />
+                    </div>
+                    <div className="cursor-pointer transition-transform active:scale-95" onClick={() => { setIsEditingEvals(true); setExpandedEval("B"); }}>
+                      <EvalBox label="B" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_b)} min={7} />
+                    </div>
+                    <div className="cursor-pointer transition-transform active:scale-95" onClick={() => { setIsEditingEvals(true); setExpandedEval("C"); }}>
+                      <EvalBox label="C" score={calculatePctC(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c)} min={70} isPct />
+                    </div>
                   </div>
                 )}
               </div>
