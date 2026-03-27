@@ -49,6 +49,8 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   const [seconds, setSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
+  const [currentActivity, setCurrentActivity] = useState<string>("");
+  const [sessions, setSessions] = useState<Array<{ activity: string, seconds: number, start: string, end: string }>>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Signature
@@ -68,6 +70,33 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [timerActive]);
+
+  const handleToggleTimer = () => {
+    if (!timerActive) {
+      if (!currentActivity) {
+        toast.error("Selecione uma atividade antes de iniciar o tempo.");
+        return;
+      }
+      setStartTime(new Date().toISOString());
+      setTimerActive(true);
+    } else {
+      const endTime = new Date().toISOString();
+      if (seconds > 0) {
+        setSessions([...sessions, {
+          activity: currentActivity,
+          seconds: seconds,
+          start: startTime!,
+          end: endTime
+        }]);
+      }
+      setTimerActive(false);
+      setSeconds(0);
+      setStartTime(null);
+      toast.success(`Sessão de "${currentActivity}" registrada!`);
+    }
+  };
+
+  const totalSeconds = sessions.reduce((acc, s) => acc + s.seconds, 0) + (timerActive ? seconds : 0);
 
   const isComplete = 
     trainee.nome && trainee.cpf && trainee.matricula && config.local &&
@@ -136,7 +165,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         prazoDias = 180;
       }
 
-      const { error: insertError } = await supabase
+      const { data: trainingData, error: insertError } = await supabase
         .from('treinamentos')
         .insert({
           treinador_id: user.id,
@@ -148,18 +177,47 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           local_treinamento: config.local,
           atividades: config.atividades,
           iniciado_em: new Date().toISOString(),
-          horas_acumuladas: seconds,
+          horas_acumuladas: totalSeconds,
           horas_necessarias: horasNecessarias,
           prazo_dias: prazoDias,
           status: 'em_andamento',
           notas_a: scoresA,
           notas_b: scoresB,
           resultados_c: resultsC
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
-      toast.success("Treinamento iniciado e salvo em andamento!");
+      // Save sessions to history
+      const finalSessions = [...sessions];
+      if (timerActive && seconds > 0) {
+        finalSessions.push({
+          activity: currentActivity,
+          seconds: seconds,
+          start: startTime!,
+          end: new Date().toISOString()
+        });
+      }
+
+      if (finalSessions.length > 0) {
+        const historyRecords = finalSessions.map(s => ({
+          treinamento_id: trainingData.id,
+          nome_atividade: s.activity,
+          hora_inicio: s.start,
+          hora_fim: s.end,
+          tempo_execucao: s.seconds
+        }));
+
+        const { error: historyError } = await supabase
+          .from('historico_atividades')
+          .insert(historyRecords);
+        
+        if (historyError) throw historyError;
+      }
+
+      toast.success("Treinamento iniciado e histórico registrado!");
       onComplete();
     } catch (err: any) {
       toast.error("Erro ao salvar treinamento: " + err.message);
@@ -199,7 +257,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       }
 
       // 2. Save Training
-      const { error: insertError } = await supabase
+      const { data: trainingData, error: insertError } = await supabase
         .from('treinamentos')
         .insert({
           treinador_id: user.id,
@@ -210,8 +268,9 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           tipo_treinamento: config.tipoTreinamento,
           local_treinamento: config.local,
           atividades: config.atividades,
-          iniciado_em: startTime,
+          iniciado_em: startTime || new Date().toISOString(),
           encerrado_em: new Date().toISOString(),
+          horas_acumuladas: totalSeconds,
           notas_a: scoresA,
           notas_b: scoresB,
           resultados_c: resultsC,
@@ -222,9 +281,34 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           observacoes: observacoes,
           assinatura_treinador_url: signatureUrl,
           status: 'concluido'
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+
+      // Save sessions to history
+      const finalSessions = [...sessions];
+      if (timerActive && seconds > 0) {
+        finalSessions.push({
+          activity: currentActivity,
+          seconds: seconds,
+          start: startTime!,
+          end: new Date().toISOString()
+        });
+      }
+
+      if (finalSessions.length > 0) {
+        const historyRecords = finalSessions.map(s => ({
+          treinamento_id: trainingData.id,
+          nome_atividade: s.activity,
+          hora_inicio: s.start,
+          hora_fim: s.end,
+          tempo_execucao: s.seconds
+        }));
+
+        await supabase.from('historico_atividades').insert(historyRecords);
+      }
 
       toast.success("Treinamento finalizado e salvo com sucesso!");
       onComplete();
@@ -372,52 +456,79 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
       {step === 2 && (
         <div className="space-y-6">
-          <div className="bg-surface border border-border p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8 shadow-sm">
-            <div className="flex items-center justify-between sm:block">
-              <div>
-                <div className="text-[10px] text-muted font-mono uppercase tracking-wider mb-1">Tempo</div>
-                <div className="text-2xl sm:text-3xl font-bold font-mono text-text tracking-wider">{formatTime(seconds)}</div>
+          <div className="bg-surface border border-border p-4 sm:p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+              <div className="flex-1 space-y-4 w-full">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Atividade Atual</label>
+                  <select
+                    disabled={timerActive}
+                    className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
+                    value={currentActivity}
+                    onChange={(e) => setCurrentActivity(e.target.value)}
+                  >
+                    <option value="">Selecione a atividade para cronometrar...</option>
+                    {config.atividades.map((act) => (
+                      <option key={act} value={act}>{act}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-6">
+                  <div>
+                    <div className="text-[10px] text-muted font-mono uppercase tracking-wider mb-1">Tempo da Sessão</div>
+                    <div className={cn("text-3xl font-bold font-mono tracking-wider", timerActive ? "text-accent" : "text-text")}>
+                      {formatTime(seconds)}
+                    </div>
+                  </div>
+                  <div className="h-10 w-px bg-border mx-2" />
+                  <div>
+                    <div className="text-[10px] text-muted font-mono uppercase tracking-wider mb-1">Total Acumulado</div>
+                    <div className="text-xl font-bold font-mono text-muted">
+                      {formatTime(totalSeconds)}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="sm:hidden">
-                {!timerActive ? (
-                  <button
-                    onClick={() => setTimerActive(true)}
-                    className="p-2 bg-accent text-white rounded-full"
-                  >
-                    <Play size={20} fill="currentColor" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setTimerActive(false)}
-                    className="p-2 bg-surface2 border border-border2 text-text rounded-full"
-                  >
-                    <Square size={20} fill="currentColor" />
-                  </button>
+
+              <div className="flex flex-col gap-3 w-full md:w-auto">
+                <button
+                  onClick={handleToggleTimer}
+                  className={cn(
+                    "px-8 py-4 text-white text-[13px] font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95",
+                    timerActive ? "bg-danger hover:bg-danger-dark" : "bg-accent hover:bg-accent-dark"
+                  )}
+                >
+                  {timerActive ? (
+                    <><Square size={18} fill="currentColor" /> PARAR SESSÃO</>
+                  ) : (
+                    <><Play size={18} fill="currentColor" /> INICIAR SESSÃO</>
+                  )}
+                </button>
+                {sessions.length > 0 && (
+                  <div className="text-[11px] text-center text-muted font-medium">
+                    {sessions.length} sessões registradas
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex-1 border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-8">
-              <div className="text-[11px] text-muted uppercase tracking-wider">Colaborador</div>
-              <div className="text-base sm:text-lg font-semibold">{trainee.nome}</div>
-              <div className="text-[11px] font-mono text-muted">CPF: {trainee.cpf}</div>
-            </div>
-            <div className="hidden sm:flex gap-3">
-              {!timerActive ? (
-                <button
-                  onClick={() => setTimerActive(true)}
-                  className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-bold flex items-center gap-2"
-                >
-                  <Play size={16} fill="currentColor" /> INICIAR
-                </button>
-              ) : (
-                <button
-                  onClick={() => setTimerActive(false)}
-                  className="px-5 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-bold flex items-center gap-2"
-                >
-                  <Square size={16} fill="currentColor" /> ENCERRAR
-                </button>
-              )}
-            </div>
+
+            {sessions.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-border">
+                <div className="text-[10px] text-muted font-mono uppercase tracking-wider mb-3">Histórico desta Avaliação</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {sessions.map((s, i) => (
+                    <div key={i} className="p-3 bg-surface2 border border-border rounded flex justify-between items-center">
+                      <div className="truncate pr-2">
+                        <div className="text-[11px] font-bold truncate">{s.activity}</div>
+                        <div className="text-[10px] text-muted">{new Date(s.start).toLocaleTimeString()}</div>
+                      </div>
+                      <div className="text-[12px] font-mono font-bold text-accent">{formatTime(s.seconds)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-8">
@@ -532,7 +643,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <InfoRow label="Matrícula" value={trainee.matricula} />
                 <InfoRow label="Tipo de Treinamento" value={config.tipoTreinamento} />
                 <InfoRow label="Local" value={config.local} />
-                <InfoRow label="Duração Total" value={formatTime(seconds)} />
+                <InfoRow label="Duração Total" value={formatTime(totalSeconds)} />
                 <InfoRow label="Avaliação A (média)" value={`${result.avgA.toFixed(1)} / 10 ${result.avgA >= 7 ? "✅" : "❌"}`} />
                 <InfoRow label="Avaliação B (média)" value={`${result.avgB.toFixed(1)} / 10 ${result.avgB >= 7 ? "✅" : "❌"}`} />
                 <InfoRow label="Avaliação C (acertos)" value={`${result.pctC.toFixed(0)}% (${result.hitsC}/${result.totalC}) ${result.pctC >= 70 && result.totalC >= 20 ? "✅" : "❌"}`} />
