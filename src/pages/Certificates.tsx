@@ -21,6 +21,15 @@ interface Certificate {
   status: string;
   local_treinamento?: string;
   atividades?: string[];
+  atividades_status?: Record<string, {
+    concluida: boolean;
+    notas_a: Record<number, number>;
+    notas_b: Record<number, number>;
+    resultados_c: Record<number, boolean>;
+    tempo_segundos: number;
+    assinatura_treinador_url?: string;
+    assinatura_aluno_url?: string;
+  }>;
   notas_a?: Record<number, number>;
   notas_b?: Record<number, number>;
   resultados_c?: Record<number, boolean>;
@@ -110,6 +119,13 @@ export const Certificates: React.FC = () => {
     }
   };
 
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h}h ${m}m ${s}s`;
+  };
+
   const generatePDF = async (cert: Certificate) => {
     toast.info(`Gerando PDF para ${cert.colaborador_nome}...`);
     
@@ -146,8 +162,41 @@ export const Certificates: React.FC = () => {
         styles: { fontSize: 9 },
       });
 
-      // Activities
-      if (cert.atividades && cert.atividades.length > 0) {
+      // Activities and Scores
+      if (cert.atividades_status && Object.keys(cert.atividades_status).length > 0) {
+        Object.entries(cert.atividades_status).forEach(([actName, status], idx) => {
+          doc.setFontSize(11);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(31, 41, 55);
+          doc.text(`Atividade: ${actName}`, 14, (doc as any).lastAutoTable.finalY + 15);
+          
+          const avgA = Object.values(status.notas_a).length > 0 
+            ? (Object.values(status.notas_a).reduce((a, b) => a + b, 0) / Object.values(status.notas_a).length).toFixed(1)
+            : "N/A";
+          const avgB = Object.values(status.notas_b).length > 0
+            ? (Object.values(status.notas_b).reduce((a, b) => a + b, 0) / Object.values(status.notas_b).length).toFixed(1)
+            : "N/A";
+          const hitsC = Object.values(status.resultados_c).filter(v => v).length;
+          const totalC = Object.values(status.resultados_c).length;
+          const pctC = totalC > 0 ? `${((hitsC / totalC) * 100).toFixed(0)}%` : "N/A";
+
+          autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 20,
+            head: [["Critério", "Resultado/Média"]],
+            body: [
+              ["Avaliação A (Comportamento)", avgA],
+              ["Avaliação B (Detecção)", avgB],
+              ["Avaliação C (Testes)", pctC],
+              ["Tempo de Execução", formatDuration(status.tempo_segundos)],
+              ["Status", status.concluida ? "CONCLUÍDA" : "EM ANDAMENTO"]
+            ],
+            theme: "grid",
+            headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+            styles: { fontSize: 8 },
+          });
+        });
+      } else if (cert.atividades && cert.atividades.length > 0) {
+        // Fallback for old records
         autoTable(doc, {
           startY: (doc as any).lastAutoTable.finalY + 10,
           head: [["Atividades Executadas"]],

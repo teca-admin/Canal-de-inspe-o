@@ -18,6 +18,7 @@ import {
   LOCATIONS_AERODROME,
   LOCATIONS_AEREO,
   ACTIVITIES,
+  PHASES,
 } from "../constants";
 
 interface NewTrainingProps {
@@ -165,6 +166,17 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         prazoDias = 180;
       }
 
+      const initialAtividadesStatus: Record<string, any> = {};
+      config.atividades.forEach(act => {
+        initialAtividadesStatus[act] = {
+          concluida: false,
+          notas_a: {},
+          notas_b: {},
+          resultados_c: {},
+          tempo_segundos: sessions.filter(s => s.activity === act).reduce((acc, s) => acc + s.seconds, 0)
+        };
+      });
+
       const { data: trainingData, error: insertError } = await supabase
         .from('treinamentos')
         .insert({
@@ -183,7 +195,9 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           status: 'em_andamento',
           notas_a: scoresA,
           notas_b: scoresB,
-          resultados_c: resultsC
+          resultados_c: resultsC,
+          current_phase: 1,
+          atividades_status: initialAtividadesStatus
         })
         .select()
         .single();
@@ -448,7 +462,10 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
           <Card title="Atividades Executadas" tag="Obrigatório">
             <div className="space-y-2">
-              {ACTIVITIES.map((act) => (
+              {(config.tipoTreinamento === TrainingType.FORMACAO || config.tipoTreinamento === TrainingType.TROCA_POSTO 
+                ? PHASES[0].activities 
+                : ACTIVITIES
+              ).map((act) => (
                 <label
                   key={act}
                   className={cn(

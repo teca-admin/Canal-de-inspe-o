@@ -93,3 +93,32 @@ export const ACTIVITIES = [
   "Prática Supervisionada nas funções I, II, III, IV, V e controle de acesso",
   "Prática Avaliada",
 ];
+
+export const PHASES = [
+  {
+    id: 1,
+    name: "Fase 1 – Orientação",
+    durationHours: 4,
+    activities: [
+      "Leitura do RBAC 107, Resolução 515, Resolução 461",
+      "Leitura das Instruções de Trabalho do Posto",
+      "Orientação sobre a execução das atividades",
+      "Observação da execução das atividades pelos demais APAC (Agente Sombra)",
+      "Simulador de interpretação de imagens de raios-X",
+    ],
+  },
+  {
+    id: 2,
+    name: "Fase 2 – Identificação de ameaças",
+    durationHours: 32,
+    activities: [
+      "Prática Supervisionada nas funções I, II, III, IV, V e controle de acesso",
+    ],
+  },
+  {
+    id: 3,
+    name: "Fase 3 – Prática avaliada",
+    durationHours: 4,
+    activities: ["Prática Avaliada"],
+  },
+];

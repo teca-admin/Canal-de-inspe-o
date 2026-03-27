@@ -18,6 +18,16 @@ export enum TrainingStatus {
   CONCLUIDO = "concluido",
 }
 
+export interface ActivityStatus {
+  concluida: boolean;
+  notas_a: Record<number, number>;
+  notas_b: Record<number, number>;
+  resultados_c: Record<number, boolean>;
+  assinatura_treinador_url?: string;
+  assinatura_aluno_url?: string;
+  tempo_segundos: number;
+}
+
 export interface TraineeData {
   nome: string;
   cpf: string;
@@ -54,6 +64,8 @@ export interface OngoingTraining {
   tipo_formulario: FormType;
   local_treinamento: string;
   status: "em_andamento" | "concluido";
+  current_phase: number;
+  atividades_status: Record<string, ActivityStatus>;
   horas_acumuladas: number; // in seconds
   horas_necessarias: number; // in seconds
   prazo_dias: number;

@@ -7,46 +7,219 @@ import { cn } from "../lib/utils";
 
 import { CRITERIA_A, CRITERIA_B, SCENARIOS_C, ACTIVITIES } from "../constants";
 
+import { PHASES } from "../constants";
+import SignatureCanvas from "react-signature-canvas";
+
 export const OngoingTrainings: React.FC = () => {
   const [trainings, setTrainings] = useState<OngoingTraining[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTraining, setSelectedTraining] = useState<OngoingTraining | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<string>("");
+  const [selectedCriterion, setSelectedCriterion] = useState<"A" | "B" | "C" | "">("");
   const [activityHistory, setActivityHistory] = useState<any[]>([]);
   const [activeSession, setActiveSession] = useState<TrainingSessionRecord | null>(null);
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [filter, setFilter] = useState("");
   const [isEditingEvals, setIsEditingEvals] = useState(false);
+  const [showFinalizeActivity, setShowFinalizeActivity] = useState(false);
+  const [activityToFinalize, setActivityToFinalize] = useState<string>("");
+  
+  const trainerSigRef = useRef<SignatureCanvas>(null);
+  const traineeSigRef = useRef<SignatureCanvas>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const currentPhase = selectedTraining?.current_phase || 1;
+  const phaseInfo = PHASES.find(p => p.id === currentPhase);
+  const phaseActivities = phaseInfo?.activities || [];
 
   const filteredTrainings = trainings.filter(t => 
     t.colaborador_nome.toLowerCase().includes(filter.toLowerCase()) ||
     t.colaborador_cpf.includes(filter)
   );
 
-  const handleUpdateEval = async (field: string, value: any) => {
+  const handleUpdateEval = async (field: string, value: any, activityName?: string) => {
     if (!selectedTraining) return;
     try {
+      let updateData: any = { [field]: value };
+      
+      if (activityName) {
+        const currentStatus = selectedTraining.atividades_status || {};
+        const activityStatus = currentStatus[activityName] || {
+          concluida: false,
+          notas_a: {},
+          notas_b: {},
+          resultados_c: {},
+          tempo_segundos: 0
+        };
+        
+        if (field === 'notas_a') activityStatus.notas_a = value;
+        if (field === 'notas_b') activityStatus.notas_b = value;
+        if (field === 'resultados_c') activityStatus.resultados_c = value;
+        
+        currentStatus[activityName] = activityStatus;
+        updateData = { ...updateData, atividades_status: currentStatus };
+      }
+
       const { error } = await supabase
         .from('treinamentos')
-        .update({ [field]: value })
+        .update(updateData)
         .eq('id', selectedTraining.id);
       
       if (error) throw error;
       
-      setSelectedTraining({ ...selectedTraining, [field]: value });
-      setTrainings(trainings.map(t => t.id === selectedTraining.id ? { ...t, [field]: value } : t));
+      const updatedTraining = { ...selectedTraining, ...updateData };
+      setSelectedTraining(updatedTraining);
+      setTrainings(trainings.map(t => t.id === selectedTraining.id ? updatedTraining : t));
     } catch (err: any) {
       toast.error("Erro ao atualizar avaliação: " + err.message);
     }
   };
 
+  const handleFinalizeActivity = async () => {
+    if (!selectedTraining || !activityToFinalize) return;
+    if (trainerSigRef.current?.isEmpty() || traineeSigRef.current?.isEmpty()) {
+      toast.error("Assinaturas do treinador e do aluno são obrigatórias.");
+      return;
+    }
+
+    const status = selectedTraining.atividades_status?.[activityToFinalize];
+    if (!status) {
+      toast.error("Atividade não iniciada.");
+      return;
+    }
+
+    // Check if evaluations are complete
+    const hasA = Object.keys(status.notas_a || {}).length > 0;
+    const hasB = Object.keys(status.notas_b || {}).length > 0;
+    const hasC = Object.keys(status.resultados_c || {}).length > 0;
+
+    if (!hasA || !hasB || !hasC) {
+      toast.error("Avaliações A, B e C devem estar concluídas para finalizar a atividade.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Upload signatures
+      const trainerSig = trainerSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
+      const traineeSig = traineeSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
+
+      if (!trainerSig || !traineeSig) {
+        toast.error("Ambas as assinaturas são obrigatórias.");
+        return;
+      }
+
+      // Check if ABC evaluations are complete
+      const activityStatus = selectedTraining.atividades_status?.[activityToFinalize];
+      const notasA = activityStatus?.notas_a || {};
+      const notasB = activityStatus?.notas_b || {};
+      const resultadosC = activityStatus?.resultados_c || {};
+
+      const isAComplete = Object.keys(notasA).length === CRITERIA_A.length;
+      const isBComplete = Object.keys(notasB).length === CRITERIA_B.length;
+      const isCComplete = Object.keys(resultadosC).length === SCENARIOS_C.length;
+
+      if (!isAComplete || !isBComplete || !isCComplete) {
+        toast.error("Todas as avaliações (A, B e C) devem ser preenchidas antes de finalizar a atividade.");
+        return;
+      }
+
+      const uploadSig = async (dataUrl: string, type: string) => {
+        const blob = await (await fetch(dataUrl)).blob();
+        const fileName = `${selectedTraining.id}_${activityToFinalize}_${type}_${Date.now()}.png`;
+        const { data, error } = await supabase.storage.from('signatures').upload(fileName, blob);
+        if (error) throw error;
+        return supabase.storage.from('signatures').getPublicUrl(data.path).data.publicUrl;
+      };
+
+      const trainerSigUrl = await uploadSig(trainerSig!, 'trainer');
+      const traineeSigUrl = await uploadSig(traineeSig!, 'trainee');
+
+      const currentStatus = { ...selectedTraining.atividades_status };
+      currentStatus[activityToFinalize] = {
+        ...currentStatus[activityToFinalize],
+        concluida: true,
+        assinatura_treinador_url: trainerSigUrl,
+        assinatura_aluno_url: traineeSigUrl
+      };
+
+      // Check for phase progression
+      let nextPhase = selectedTraining.current_phase;
+      const currentPhaseInfo = PHASES.find(p => p.id === selectedTraining.current_phase);
+      const allPhaseActivitiesDone = currentPhaseInfo?.activities.every(act => currentStatus[act]?.concluida);
+      
+      if (allPhaseActivitiesDone && nextPhase < 3) {
+        nextPhase += 1;
+        const nextPhaseInfo = PHASES.find(p => p.id === nextPhase);
+        nextPhaseInfo?.activities.forEach(act => {
+          if (!currentStatus[act]) {
+            currentStatus[act] = {
+              concluida: false,
+              notas_a: {},
+              notas_b: {},
+              resultados_c: {},
+              tempo_segundos: 0
+            };
+          }
+        });
+        toast.success(`Fase ${selectedTraining.current_phase} concluída! Avançando para Fase ${nextPhase}.`);
+      }
+
+      const { error } = await supabase
+        .from('treinamentos')
+        .update({ 
+          atividades_status: currentStatus,
+          current_phase: nextPhase
+        })
+        .eq('id', selectedTraining.id);
+
+      if (error) throw error;
+
+      toast.success("Atividade finalizada com sucesso!");
+      setShowFinalizeActivity(false);
+      setActivityToFinalize("");
+      fetchTrainings();
+    } catch (err: any) {
+      toast.error("Erro ao finalizar atividade: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleFinalizeTraining = async () => {
     if (!selectedTraining) return;
 
-    const avgA = calculateAvg(selectedTraining.notas_a);
-    const avgB = calculateAvg(selectedTraining.notas_b);
-    const pctC = calculatePctC(selectedTraining.resultados_c);
+    // Calculate overall scores from all activities
+    const allStatus = Object.values(selectedTraining.atividades_status || {}) as any[];
+    
+    let totalA = 0, countA = 0;
+    let totalB = 0, countB = 0;
+    let totalHitsC = 0, totalTestsC = 0;
+
+    allStatus.forEach(status => {
+      const valsA = Object.values(status.notas_a || {}) as number[];
+      if (valsA.length > 0) {
+        totalA += valsA.reduce((a, b) => a + b, 0);
+        countA += valsA.length;
+      }
+
+      const valsB = Object.values(status.notas_b || {}) as number[];
+      if (valsB.length > 0) {
+        totalB += valsB.reduce((a, b) => a + b, 0);
+        countB += valsB.length;
+      }
+
+      const valsC = Object.values(status.resultados_c || {}) as boolean[];
+      if (valsC.length > 0) {
+        totalHitsC += valsC.filter(v => v).length;
+        totalTestsC += valsC.length;
+      }
+    });
+
+    const avgA = countA > 0 ? totalA / countA : 0;
+    const avgB = countB > 0 ? totalB / countB : 0;
+    const pctC = totalTestsC > 0 ? (totalHitsC / totalTestsC) * 100 : 0;
+
     const hoursMet = (selectedTraining.horas_acumuladas || 0) >= (selectedTraining.horas_necessarias || 0);
 
     if (!hoursMet) {
@@ -55,7 +228,13 @@ export const OngoingTrainings: React.FC = () => {
     }
 
     if (avgA < 7 || avgB < 7 || pctC < 70) {
-      toast.error("Avaliações abaixo da média mínima.");
+      toast.error(`Avaliações abaixo da média mínima. (A: ${avgA.toFixed(1)}, B: ${avgB.toFixed(1)}, C: ${pctC.toFixed(0)}%)`);
+      return;
+    }
+
+    // Check if all phases are complete
+    if (selectedTraining.current_phase < 3) {
+      toast.error("Todas as fases devem ser concluídas antes de finalizar o treinamento.");
       return;
     }
 
@@ -65,7 +244,10 @@ export const OngoingTrainings: React.FC = () => {
         .update({ 
           status: 'concluido',
           situacao: 'apto',
-          encerrado_em: new Date().toISOString()
+          encerrado_em: new Date().toISOString(),
+          media_a: avgA,
+          media_b: avgB,
+          percentual_c: pctC
         })
         .eq('id', selectedTraining.id);
 
@@ -143,6 +325,10 @@ export const OngoingTrainings: React.FC = () => {
       toast.error("Selecione uma atividade para iniciar.");
       return;
     }
+    if (!selectedCriterion) {
+      toast.error("Selecione qual critério (A, B ou C) será avaliado.");
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -150,7 +336,8 @@ export const OngoingTrainings: React.FC = () => {
         .insert({
           training_id: training.id,
           inicio: new Date().toISOString(),
-          duracao_segundos: 0
+          duracao_segundos: 0,
+          metadata: { atividade: selectedActivity, criterio: selectedCriterion }
         })
         .select()
         .single();
@@ -194,10 +381,25 @@ export const OngoingTrainings: React.FC = () => {
 
       // Update accumulated hours in training
       const newAccumulated = (selectedTraining.horas_acumuladas || 0) + sessionSeconds;
+      
+      // Update atividades_status
+      const currentStatus = selectedTraining.atividades_status || {};
+      const activityStatus = currentStatus[selectedActivity] || {
+        concluida: false,
+        notas_a: {},
+        notas_b: {},
+        resultados_c: {},
+        tempo_segundos: 0
+      };
+      
+      activityStatus.tempo_segundos = (activityStatus.tempo_segundos || 0) + sessionSeconds;
+      currentStatus[selectedActivity] = activityStatus;
+
       const { error: trainingError } = await supabase
         .from('treinamentos')
         .update({
-          horas_acumuladas: newAccumulated
+          horas_acumuladas: newAccumulated,
+          atividades_status: currentStatus
         })
         .eq('id', selectedTraining.id);
 
@@ -290,6 +492,7 @@ export const OngoingTrainings: React.FC = () => {
               <tr className="bg-surface2">
                 <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Colaborador</th>
                 <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Tipo</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Fase</th>
                 <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Progresso</th>
                 <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Carga Horária</th>
                 <th className="text-left text-[10px] uppercase tracking-wider text-hint font-mono font-medium p-3 px-4 border-b-2 border-border">Início</th>
@@ -340,30 +543,52 @@ export const OngoingTrainings: React.FC = () => {
                       {new Date(training.iniciado_em).toLocaleDateString()}
                     </td>
                     <td className="p-3 px-4">
+                      <span className="px-2 py-0.5 bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase rounded">
+                        Fase {training.current_phase || 1}
+                      </span>
+                    </td>
+                    <td className="p-3 px-4">
                       <div className="flex items-center gap-2">
-                        <select 
-                          className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
-                          value={selectedTraining?.id === training.id ? selectedActivity : ""}
-                          onChange={(e) => {
-                            setSelectedTraining(training);
-                            setSelectedActivity(e.target.value);
-                          }}
-                        >
-                          <option value="">Atividade...</option>
-                          {ACTIVITIES.map(act => (
-                            <option key={act} value={act}>{act}</option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col gap-1">
+                          <select 
+                            className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
+                            value={selectedTraining?.id === training.id ? selectedActivity : ""}
+                            onChange={(e) => {
+                              setSelectedTraining(training);
+                              setSelectedActivity(e.target.value);
+                            }}
+                          >
+                            <option value="">Atividade...</option>
+                            {(PHASES.find(p => p.id === (training.current_phase || 1))?.activities || []).map(act => (
+                              <option key={act} value={act} disabled={training.atividades_status?.[act]?.concluida}>
+                                {act} {training.atividades_status?.[act]?.concluida ? "✅" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <select 
+                            className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
+                            value={selectedTraining?.id === training.id ? selectedCriterion : ""}
+                            onChange={(e) => {
+                              setSelectedTraining(training);
+                              setSelectedCriterion(e.target.value as any);
+                            }}
+                          >
+                            <option value="">Avaliação...</option>
+                            <option value="A">Critério A</option>
+                            <option value="B">Critério B</option>
+                            <option value="C">Critério C</option>
+                          </select>
+                        </div>
                         <button 
                           disabled={!!activeSession}
-                          className="p-1.5 bg-accent hover:bg-accent-dark text-white rounded transition-colors disabled:opacity-50"
+                          className="p-2 bg-accent hover:bg-accent-dark text-white rounded transition-colors disabled:opacity-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleStartSession(training);
                           }}
                           title="Iniciar Sessão"
                         >
-                          <Play size={14} fill="currentColor" />
+                          <Play size={16} fill="currentColor" />
                         </button>
                         <button 
                           className="px-3 py-1 bg-surface2 hover:bg-border border border-border2 text-[11px] font-bold transition-colors"
@@ -452,91 +677,112 @@ export const OngoingTrainings: React.FC = () => {
               
               <div className="pt-4 border-t">
                 <div className="flex items-center justify-between border-b pb-2 mb-4">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">Avaliações</h4>
-                  <button 
-                    onClick={() => setIsEditingEvals(!isEditingEvals)}
-                    className="text-[10px] text-accent hover:underline font-bold uppercase"
-                  >
-                    {isEditingEvals ? "Salvar" : "Editar"}
-                  </button>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">Avaliações {selectedActivity ? `— ${selectedActivity}` : ""}</h4>
+                  <div className="flex gap-2">
+                    {selectedActivity && !selectedTraining.atividades_status?.[selectedActivity]?.concluida && (
+                      <button 
+                        onClick={() => {
+                          setActivityToFinalize(selectedActivity);
+                          setShowFinalizeActivity(true);
+                        }}
+                        className="text-[10px] text-success hover:underline font-bold uppercase"
+                      >
+                        Finalizar Atividade
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setIsEditingEvals(!isEditingEvals)}
+                      className="text-[10px] text-accent hover:underline font-bold uppercase"
+                    >
+                      {isEditingEvals ? "Salvar" : "Editar"}
+                    </button>
+                  </div>
                 </div>
                 {isEditingEvals ? (
                   <div className="space-y-6">
-                    <div className="space-y-4">
-                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação A — Comportamento</h5>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                        {CRITERIA_A.map((criterion, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                            <span className="text-[12px] leading-tight">{criterion}</span>
-                            <input 
-                              type="number" 
-                              min="0" max="10" step="0.5"
-                              className="w-16 p-1 border border-border text-center text-sm"
-                              value={selectedTraining.notas_a?.[idx] || ""}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                const newNotas = { ...(selectedTraining.notas_a || {}), [idx]: val };
-                                handleUpdateEval('notas_a', newNotas);
-                              }}
-                            />
-                          </div>
-                        ))}
+                    {!selectedActivity ? (
+                      <div className="text-[12px] text-muted italic p-4 text-center bg-surface2 border border-dashed border-border">
+                        Selecione uma atividade na tabela acima para editar suas avaliações.
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="space-y-4">
+                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação A — Comportamento</h5>
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                            {CRITERIA_A.map((criterion, idx) => (
+                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                <span className="text-[12px] leading-tight">{criterion}</span>
+                                <input 
+                                  type="number" 
+                                  min="0" max="10" step="0.5"
+                                  className="w-16 p-1 border border-border text-center text-sm"
+                                  value={selectedTraining.atividades_status?.[selectedActivity]?.notas_a?.[idx] || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_a || {}), [idx]: val };
+                                    handleUpdateEval('notas_a', newNotas, selectedActivity);
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
 
-                    <div className="space-y-4">
-                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação B — Detecção</h5>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                        {CRITERIA_B.map((criterion, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                            <span className="text-[12px] leading-tight">{criterion}</span>
-                            <input 
-                              type="number" 
-                              min="0" max="10" step="0.5"
-                              className="w-16 p-1 border border-border text-center text-sm"
-                              value={selectedTraining.notas_b?.[idx] || ""}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                const newNotas = { ...(selectedTraining.notas_b || {}), [idx]: val };
-                                handleUpdateEval('notas_b', newNotas);
-                              }}
-                            />
+                        <div className="space-y-4">
+                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação B — Detecção</h5>
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                            {CRITERIA_B.map((criterion, idx) => (
+                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                <span className="text-[12px] leading-tight">{criterion}</span>
+                                <input 
+                                  type="number" 
+                                  min="0" max="10" step="0.5"
+                                  className="w-16 p-1 border border-border text-center text-sm"
+                                  value={selectedTraining.atividades_status?.[selectedActivity]?.notas_b?.[idx] || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    const newNotas = { ...(selectedTraining.atividades_status?.[selectedActivity]?.notas_b || {}), [idx]: val };
+                                    handleUpdateEval('notas_b', newNotas, selectedActivity);
+                                  }}
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
 
-                    <div className="space-y-4">
-                      <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação C — Testes Aleatórios</h5>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-                        {SCENARIOS_C.map((scenario, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
-                            <span className="text-[12px] leading-tight">{scenario}</span>
-                            <select 
-                              className="p-1 border border-border text-sm bg-surface"
-                              value={selectedTraining.resultados_c?.[idx] === undefined ? "" : selectedTraining.resultados_c[idx] ? "hit" : "miss"}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const newResults = { ...(selectedTraining.resultados_c || {}) };
-                                if (val === "") delete newResults[idx];
-                                else newResults[idx] = val === "hit";
-                                handleUpdateEval('resultados_c', newResults);
-                              }}
-                            >
-                              <option value="">—</option>
-                              <option value="hit">✅</option>
-                              <option value="miss">❌</option>
-                            </select>
+                        <div className="space-y-4">
+                          <h5 className="text-[12px] font-bold text-accent uppercase border-b pb-1">Avaliação C — Testes Aleatórios</h5>
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                            {SCENARIOS_C.map((scenario, idx) => (
+                              <div key={idx} className="flex items-center justify-between gap-4 p-2 bg-surface2 border border-border rounded">
+                                <span className="text-[12px] leading-tight">{scenario}</span>
+                                <select 
+                                  className="p-1 border border-border text-sm bg-surface"
+                                  value={selectedTraining.atividades_status?.[selectedActivity]?.resultados_c?.[idx] === undefined ? "" : selectedTraining.atividades_status[selectedActivity].resultados_c[idx] ? "hit" : "miss"}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const newResults = { ...(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c || {}) };
+                                    if (val === "") delete newResults[idx];
+                                    else newResults[idx] = val === "hit";
+                                    handleUpdateEval('resultados_c', newResults, selectedActivity);
+                                  }}
+                                >
+                                  <option value="">—</option>
+                                  <option value="hit">✅</option>
+                                  <option value="miss">❌</option>
+                                </select>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
-                    <EvalBox label="A" score={calculateAvg(selectedTraining.notas_a)} min={7} />
-                    <EvalBox label="B" score={calculateAvg(selectedTraining.notas_b)} min={7} />
-                    <EvalBox label="C" score={calculatePctC(selectedTraining.resultados_c)} min={70} isPct />
+                    <EvalBox label="A" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_a)} min={7} />
+                    <EvalBox label="B" score={calculateAvg(selectedTraining.atividades_status?.[selectedActivity]?.notas_b)} min={7} />
+                    <EvalBox label="C" score={calculatePctC(selectedTraining.atividades_status?.[selectedActivity]?.resultados_c)} min={70} isPct />
                   </div>
                 )}
               </div>
@@ -556,6 +802,87 @@ export const OngoingTrainings: React.FC = () => {
             >
               <CheckCircle2 size={18} /> FINALIZAR TREINAMENTO
             </button>
+          </div>
+        </div>
+      )}
+
+      {showFinalizeActivity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-border w-full max-w-2xl shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-border flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold">Finalizar Atividade</h3>
+                <p className="text-[12px] text-muted">{activityToFinalize}</p>
+              </div>
+              <button 
+                onClick={() => setShowFinalizeActivity(false)}
+                className="text-muted hover:text-text"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted">Assinatura do Treinador</label>
+                  <div className="border border-border bg-white rounded overflow-hidden">
+                    <SignatureCanvas 
+                      ref={trainerSigRef}
+                      penColor="black"
+                      canvasProps={{ className: "w-full h-40" }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => trainerSigRef.current?.clear()}
+                    className="text-[10px] text-accent hover:underline font-bold uppercase"
+                  >
+                    Limpar
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted">Assinatura do Aluno</label>
+                  <div className="border border-border bg-white rounded overflow-hidden">
+                    <SignatureCanvas 
+                      ref={traineeSigRef}
+                      penColor="black"
+                      canvasProps={{ className: "w-full h-40" }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => traineeSigRef.current?.clear()}
+                    className="text-[10px] text-accent hover:underline font-bold uppercase"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              </div>
+              
+              <div className="bg-accent/5 border border-accent/20 p-4 rounded text-[12px] text-accent flex gap-3">
+                <AlertCircle size={18} className="shrink-0" />
+                <p>
+                  Ao finalizar esta atividade, os dados de avaliação e as assinaturas serão registrados permanentemente. 
+                  Esta ação não pode ser desfeita.
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button
+                onClick={() => setShowFinalizeActivity(false)}
+                className="px-5 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleFinalizeActivity}
+                disabled={loading}
+                className="px-6 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
+              >
+                {loading ? "Processando..." : "Confirmar e Finalizar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
