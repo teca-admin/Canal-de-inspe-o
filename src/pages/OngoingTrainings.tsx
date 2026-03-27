@@ -22,6 +22,7 @@ export const OngoingTrainings: React.FC = () => {
   const [filter, setFilter] = useState("");
   const [isEditingEvals, setIsEditingEvals] = useState(false);
   const [showFinalizeActivity, setShowFinalizeActivity] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activityToFinalize, setActivityToFinalize] = useState<string>("");
   
   const trainerSigRef = useRef<SignatureCanvas>(null);
@@ -72,6 +73,29 @@ export const OngoingTrainings: React.FC = () => {
       setTrainings(trainings.map(t => t.id === selectedTraining.id ? updatedTraining : t));
     } catch (err: any) {
       toast.error("Erro ao atualizar avaliação: " + err.message);
+    }
+  };
+
+  const handleDeleteTraining = async () => {
+    if (!selectedTraining) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('treinamentos')
+        .delete()
+        .eq('id', selectedTraining.id);
+
+      if (error) throw error;
+
+      toast.success("Treinamento excluído com sucesso.");
+      setSelectedTraining(null);
+      setShowDeleteConfirm(false);
+      fetchTrainings();
+    } catch (err: any) {
+      toast.error("Erro ao excluir treinamento: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -502,7 +526,7 @@ export const OngoingTrainings: React.FC = () => {
             <tbody className="divide-y divide-border">
               {filteredTrainings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-10 text-center text-muted text-[13px]">
+                  <td colSpan={7} className="p-10 text-center text-muted text-[13px]">
                     Nenhum treinamento em andamento encontrado.
                   </td>
                 </tr>
@@ -514,7 +538,13 @@ export const OngoingTrainings: React.FC = () => {
                       "hover:bg-surface2 transition-colors cursor-pointer",
                       selectedTraining?.id === training.id && "bg-accent/5"
                     )}
-                    onClick={() => setSelectedTraining(training)}
+                    onClick={() => {
+                      if (selectedTraining?.id !== training.id) {
+                        setSelectedTraining(training);
+                        setSelectedActivity("");
+                        setSelectedCriterion("");
+                      }
+                    }}
                   >
                     <td className="p-3 px-4">
                       <div className="text-[13px] font-bold">{training.colaborador_nome}</div>
@@ -548,63 +578,20 @@ export const OngoingTrainings: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col gap-1">
-                          <select 
-                            className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
-                            value={selectedTraining?.id === training.id ? selectedActivity : ""}
-                            onChange={(e) => {
-                              setSelectedTraining(training);
-                              setSelectedActivity(e.target.value);
-                            }}
-                          >
-                            <option value="">Atividade...</option>
-                            {(PHASES.find(p => p.id === (training.current_phase || 1))?.activities || []).map(act => (
-                              <option key={act} value={act} disabled={training.atividades_status?.[act]?.concluida}>
-                                {act} {training.atividades_status?.[act]?.concluida ? "✅" : ""}
-                              </option>
-                            ))}
-                          </select>
-                          <select 
-                            className="p-1 border border-border text-[11px] bg-surface outline-none focus:border-accent min-w-[120px]"
-                            value={selectedTraining?.id === training.id ? selectedCriterion : ""}
-                            onChange={(e) => {
-                              setSelectedTraining(training);
-                              setSelectedCriterion(e.target.value as any);
-                            }}
-                          >
-                            <option value="">Avaliação...</option>
-                            <option value="A">Critério A</option>
-                            <option value="B">Critério B</option>
-                            <option value="C">Critério C</option>
-                          </select>
-                        </div>
-                        <button 
-                          disabled={!!activeSession}
-                          className="p-2 bg-accent hover:bg-accent-dark text-white rounded transition-colors disabled:opacity-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartSession(training);
-                          }}
-                          title="Iniciar Sessão"
-                        >
-                          <Play size={16} fill="currentColor" />
-                        </button>
-                        <button 
-                          className="px-3 py-1 bg-surface2 hover:bg-border border border-border2 text-[11px] font-bold transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTraining(training);
-                            setIsEditingEvals(true);
-                            // Scroll to details
-                            setTimeout(() => {
-                              document.getElementById('training-details')?.scrollIntoView({ behavior: 'smooth' });
-                            }, 100);
-                          }}
-                        >
-                          AVALIAR
-                        </button>
-                      </div>
+                      <button 
+                        className="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[11px] font-bold transition-colors shadow-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTraining(training);
+                          setIsEditingEvals(true);
+                          // Scroll to details
+                          setTimeout(() => {
+                            document.getElementById('training-details')?.scrollIntoView({ behavior: 'smooth' });
+                          }, 100);
+                        }}
+                      >
+                        AVALIAR / INICIAR
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -628,7 +615,46 @@ export const OngoingTrainings: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-4">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted border-b pb-2">Histórico de Atividades</h4>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted border-b pb-2">Controle de Sessão</h4>
+              <div className="space-y-3 p-4 bg-surface2 border border-border rounded">
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted uppercase font-mono">Atividade</label>
+                  <select 
+                    className="w-full p-2 border border-border text-[12px] bg-surface outline-none focus:border-accent"
+                    value={selectedActivity}
+                    onChange={(e) => setSelectedActivity(e.target.value)}
+                  >
+                    <option value="">Selecione a atividade...</option>
+                    {(PHASES.find(p => p.id === (selectedTraining.current_phase || 1))?.activities || []).map(act => (
+                      <option key={act} value={act} disabled={selectedTraining.atividades_status?.[act]?.concluida}>
+                        {act} {selectedTraining.atividades_status?.[act]?.concluida ? "✅" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted uppercase font-mono">Critério de Avaliação</label>
+                  <select 
+                    className="w-full p-2 border border-border text-[12px] bg-surface outline-none focus:border-accent"
+                    value={selectedCriterion}
+                    onChange={(e) => setSelectedCriterion(e.target.value as any)}
+                  >
+                    <option value="">Selecione o critério...</option>
+                    <option value="A">Critério A — Comportamento</option>
+                    <option value="B">Critério B — Detecção</option>
+                    <option value="C">Critério C — Testes Aleatórios</option>
+                  </select>
+                </div>
+                <button
+                  disabled={!!activeSession || !selectedActivity || !selectedCriterion}
+                  onClick={() => handleStartSession(selectedTraining)}
+                  className="w-full mt-2 py-2.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-bold flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <Play size={16} fill="currentColor" /> INICIAR SESSÃO
+                </button>
+              </div>
+
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted border-b pb-2 pt-4">Histórico de Atividades</h4>
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
                 {activityHistory.length === 0 ? (
                   <div className="text-[12px] text-muted italic">Nenhuma atividade registrada.</div>
@@ -654,6 +680,14 @@ export const OngoingTrainings: React.FC = () => {
                 <DetailItem label="Matrícula" value={selectedTraining.colaborador_mat} />
                 <DetailItem label="Tipo" value={selectedTraining.tipo_treinamento} />
                 <DetailItem label="Local" value={selectedTraining.local_treinamento} />
+              </div>
+              <div className="pt-4">
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-[10px] text-danger hover:underline font-bold uppercase flex items-center gap-1"
+                >
+                  <XCircle size={14} /> Excluir Treinamento
+                </button>
               </div>
             </div>
 
@@ -881,6 +915,39 @@ export const OngoingTrainings: React.FC = () => {
                 className="px-6 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? "Processando..." : "Confirmar e Finalizar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-surface border border-border w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-border">
+              <h3 className="text-lg font-bold text-danger">Excluir Treinamento</h3>
+            </div>
+            <div className="p-6">
+              <p className="text-[14px] text-text">
+                Tem certeza que deseja excluir permanentemente o treinamento de <strong className="text-accent">{selectedTraining?.colaborador_nome}</strong>?
+              </p>
+              <p className="text-[12px] text-muted mt-2">
+                Esta ação removerá todo o progresso, avaliações e histórico de atividades. <strong>Não pode ser desfeita.</strong>
+              </p>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteTraining}
+                disabled={loading}
+                className="px-5 py-2 bg-danger hover:bg-danger-dark text-white text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50"
+              >
+                {loading ? "Excluindo..." : "Confirmar Exclusão"}
               </button>
             </div>
           </div>

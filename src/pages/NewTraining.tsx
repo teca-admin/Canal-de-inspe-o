@@ -26,34 +26,85 @@ interface NewTrainingProps {
 }
 
 export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
-  const [step, setStep] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
-  const [trainee, setTrainee] = useState<TraineeData>({
-    nome: "",
-    cpf: "",
-    matricula: "",
+  const [step, setStep] = useState(() => {
+    const saved = localStorage.getItem("new_training_step");
+    return saved ? parseInt(saved) : 1;
   });
-  const [config, setConfig] = useState<TrainingConfig>({
-    tipoFormulario: FormType.AERODROME,
-    tipoTreinamento: TrainingType.FORMACAO,
-    local: "",
-    atividades: [],
+  const [submitting, setSubmitting] = useState(false);
+  const [trainee, setTrainee] = useState<TraineeData>(() => {
+    const saved = localStorage.getItem("new_training_trainee");
+    return saved ? JSON.parse(saved) : { nome: "", cpf: "", matricula: "" };
+  });
+  const [config, setConfig] = useState<TrainingConfig>(() => {
+    const saved = localStorage.getItem("new_training_config");
+    return saved ? JSON.parse(saved) : {
+      tipoFormulario: FormType.AERODROME,
+      tipoTreinamento: TrainingType.FORMACAO,
+      local: "",
+      atividades: [],
+    };
   });
 
   // Evaluation State
-  const [scoresA, setScoresA] = useState<Record<number, number>>({});
-  const [scoresB, setScoresB] = useState<Record<number, number>>({});
-  const [resultsC, setResultsC] = useState<Record<number, boolean>>({});
-  const [observacoes, setObservacoes] = useState("");
+  const [scoresA, setScoresA] = useState<Record<number, number>>(() => {
+    const saved = localStorage.getItem("new_training_scoresA");
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [scoresB, setScoresB] = useState<Record<number, number>>(() => {
+    const saved = localStorage.getItem("new_training_scoresB");
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [resultsC, setResultsC] = useState<Record<number, boolean>>(() => {
+    const saved = localStorage.getItem("new_training_resultsC");
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [observacoes, setObservacoes] = useState(() => {
+    return localStorage.getItem("new_training_observacoes") || "";
+  });
 
   // Timer State
   const [seconds, setSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
-  const [currentActivity, setCurrentActivity] = useState<string>("");
   const [currentCriterion, setCurrentCriterion] = useState<"A" | "B" | "C" | "">("");
-  const [sessions, setSessions] = useState<Array<{ activity: string, criterion: string, seconds: number, start: string, end: string }>>([]);
+  const [sessions, setSessions] = useState<Array<{ criterion: string, seconds: number, start: string, end: string }>>(() => {
+    const saved = localStorage.getItem("new_training_sessions");
+    return saved ? JSON.parse(saved) : [];
+  });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Persistence Effects
+  useEffect(() => {
+    localStorage.setItem("new_training_trainee", JSON.stringify(trainee));
+  }, [trainee]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_config", JSON.stringify(config));
+  }, [config]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_scoresA", JSON.stringify(scoresA));
+  }, [scoresA]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_scoresB", JSON.stringify(scoresB));
+  }, [scoresB]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_resultsC", JSON.stringify(resultsC));
+  }, [resultsC]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_observacoes", observacoes);
+  }, [observacoes]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_sessions", JSON.stringify(sessions));
+  }, [sessions]);
+
+  useEffect(() => {
+    localStorage.setItem("new_training_step", step.toString());
+  }, [step]);
 
   // Signature
   const sigPad = useRef<SignatureCanvas>(null);
@@ -75,8 +126,8 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   const handleToggleTimer = () => {
     if (!timerActive) {
-      if (!currentActivity || !currentCriterion) {
-        toast.error("Selecione a atividade e o critério antes de iniciar o tempo.");
+      if (!currentCriterion) {
+        toast.error("Selecione o critério antes de iniciar o tempo.");
         return;
       }
       setStartTime(new Date().toISOString());
@@ -85,7 +136,6 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       const endTime = new Date().toISOString();
       if (seconds > 0) {
         setSessions([...sessions, {
-          activity: currentActivity,
           criterion: currentCriterion,
           seconds: seconds,
           start: startTime!,
@@ -95,7 +145,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       setTimerActive(false);
       setSeconds(0);
       setStartTime(null);
-      toast.success(`Sessão de "${currentActivity} - Critério ${currentCriterion}" registrada!`);
+      toast.success(`Sessão de "Critério ${currentCriterion}" registrada!`);
     }
   };
 
@@ -115,11 +165,29 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
     return `${h}:${m}:${sec}`;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!trainee.nome || !trainee.cpf || !trainee.matricula || !config.local) {
         toast.error("Preencha todos os campos obrigatórios.");
         return;
+      }
+
+      // Check for existing ongoing training
+      try {
+        const { data, error } = await supabase
+          .from('treinamentos')
+          .select('id')
+          .eq('colaborador_cpf', unmaskCPF(trainee.cpf))
+          .eq('status', 'em_andamento')
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          toast.error("Este colaborador já possui um treinamento em andamento.");
+          return;
+        }
+      } catch (err: any) {
+        console.error("Erro ao verificar treinamento existente:", err);
       }
     }
     setStep(step + 1);
@@ -137,16 +205,21 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   };
 
   const calculateResult = () => {
-    const valuesA = Object.values(scoresA) as number[];
-    const valuesB = Object.values(scoresB) as number[];
+    const valuesA = (Object.values(scoresA) as any[]).filter(v => typeof v === 'number') as number[];
+    const valuesB = (Object.values(scoresB) as any[]).filter(v => typeof v === 'number') as number[];
+    
     const avgA = valuesA.length > 0 ? valuesA.reduce((a, b) => a + b, 0) / CRITERIA_A.length : 0;
     const avgB = valuesB.length > 0 ? valuesB.reduce((a, b) => a + b, 0) / CRITERIA_B.length : 0;
+    
     const totalC = Object.keys(resultsC).length;
     const hitsC = (Object.values(resultsC) as boolean[]).filter(Boolean).length;
+    
+    // Percentage is relative to total attempted, but we also track if they met the minimum volume
     const pctC = totalC > 0 ? (hitsC / totalC) * 100 : 0;
+    const hasMinTests = totalC >= 20;
 
-    const isApto = avgA >= 7 && avgB >= 7 && pctC >= 70 && totalC >= 20;
-    return { avgA, avgB, pctC, hitsC, totalC, isApto };
+    const isApto = avgA >= 7 && avgB >= 7 && pctC >= 70 && hasMinTests;
+    return { avgA, avgB, pctC, hitsC, totalC, isApto, hasMinTests };
   };
 
   const result = calculateResult();
@@ -175,7 +248,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           notas_a: {},
           notas_b: {},
           resultados_c: {},
-          tempo_segundos: sessions.filter(s => s.activity === act).reduce((acc, s) => acc + s.seconds, 0)
+          tempo_segundos: 0
         };
       });
 
@@ -197,9 +270,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           status: 'em_andamento',
           notas_a: scoresA,
           notas_b: scoresB,
-          resultados_c: resultsC,
-          current_phase: 1,
-          atividades_status: initialAtividadesStatus
+          resultados_c: resultsC
         })
         .select()
         .single();
@@ -210,7 +281,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       const finalSessions = [...sessions];
       if (timerActive && seconds > 0) {
         finalSessions.push({
-          activity: currentActivity,
+          criterion: currentCriterion,
           seconds: seconds,
           start: startTime!,
           end: new Date().toISOString()
@@ -220,7 +291,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       if (finalSessions.length > 0) {
         const historyRecords = finalSessions.map(s => ({
           treinamento_id: trainingData.id,
-          nome_atividade: s.activity,
+          nome_atividade: s.criterion ? `Avaliação Geral - Critério ${s.criterion}` : "Avaliação Geral",
           hora_inicio: s.start,
           hora_fim: s.end,
           tempo_execucao: s.seconds
@@ -232,6 +303,16 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         
         if (historyError) throw historyError;
       }
+
+      // Clear Persistence
+      localStorage.removeItem("new_training_trainee");
+      localStorage.removeItem("new_training_config");
+      localStorage.removeItem("new_training_scoresA");
+      localStorage.removeItem("new_training_scoresB");
+      localStorage.removeItem("new_training_resultsC");
+      localStorage.removeItem("new_training_observacoes");
+      localStorage.removeItem("new_training_sessions");
+      localStorage.removeItem("new_training_step");
 
       toast.success("Treinamento iniciado e histórico registrado!");
       onComplete();
@@ -307,7 +388,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       const finalSessions = [...sessions];
       if (timerActive && seconds > 0) {
         finalSessions.push({
-          activity: currentActivity,
+          criterion: currentCriterion,
           seconds: seconds,
           start: startTime!,
           end: new Date().toISOString()
@@ -317,7 +398,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       if (finalSessions.length > 0) {
         const historyRecords = finalSessions.map(s => ({
           treinamento_id: trainingData.id,
-          nome_atividade: s.activity,
+          nome_atividade: s.criterion ? `Avaliação Geral - Critério ${s.criterion}` : "Avaliação Geral",
           hora_inicio: s.start,
           hora_fim: s.end,
           tempo_execucao: s.seconds
@@ -325,6 +406,16 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
         await supabase.from('historico_atividades').insert(historyRecords);
       }
+
+      // 3. Clear Persistence
+      localStorage.removeItem("new_training_trainee");
+      localStorage.removeItem("new_training_config");
+      localStorage.removeItem("new_training_scoresA");
+      localStorage.removeItem("new_training_scoresB");
+      localStorage.removeItem("new_training_resultsC");
+      localStorage.removeItem("new_training_observacoes");
+      localStorage.removeItem("new_training_sessions");
+      localStorage.removeItem("new_training_step");
 
       toast.success("Treinamento finalizado e salvo com sucesso!");
       onComplete();
@@ -508,21 +599,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           <div className="bg-surface border border-border p-4 sm:p-6 shadow-sm">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
               <div className="space-y-4 w-full">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Atividade em Avaliação</label>
-                    <select
-                      disabled={timerActive}
-                      className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
-                      value={currentActivity}
-                      onChange={(e) => setCurrentActivity(e.target.value)}
-                    >
-                      <option value="">Selecione a atividade...</option>
-                      {config.atividades.map((act) => (
-                        <option key={act} value={act}>{act}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="max-w-xs">
                   <div className="space-y-1.5">
                     <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Critério em Avaliação</label>
                     <select
@@ -560,14 +637,14 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <button
                   onClick={handleToggleTimer}
                   className={cn(
-                    "px-8 py-4 text-white text-[13px] font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95",
+                    "px-5 py-2.5 text-white text-[12px] font-bold flex items-center justify-center gap-2 transition-all active:scale-95 min-w-[160px] rounded-sm shadow-sm",
                     timerActive ? "bg-danger hover:bg-danger-dark" : "bg-accent hover:bg-accent-dark"
                   )}
                 >
                   {timerActive ? (
-                    <><Square size={18} fill="currentColor" /> PARAR SESSÃO</>
+                    <><Square size={16} fill="currentColor" /> PARAR SESSÃO</>
                   ) : (
-                    <><Play size={18} fill="currentColor" /> INICIAR SESSÃO</>
+                    <><Play size={16} fill="currentColor" /> INICIAR SESSÃO</>
                   )}
                 </button>
                 {sessions.length > 0 && (
@@ -585,8 +662,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                   {sessions.map((s, i) => (
                     <div key={i} className="p-3 bg-surface2 border border-border rounded flex justify-between items-center">
                       <div className="truncate pr-2">
-                        <div className="text-[11px] font-bold truncate">{s.activity}</div>
-                        <div className="text-[10px] text-accent font-mono">Critério {s.criterion}</div>
+                        <div className="text-[11px] font-bold text-accent font-mono uppercase tracking-tight">Critério {s.criterion}</div>
                         <div className="text-[10px] text-muted">{new Date(s.start).toLocaleTimeString()}</div>
                       </div>
                       <div className="text-[12px] font-mono font-bold text-accent">{formatTime(s.seconds)}</div>
@@ -667,8 +743,13 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 </table>
               </div>
               <div className="p-4 px-5 bg-surface2 border-t border-border flex items-center justify-between">
-                <div className="text-[13px] text-muted">Aproveitamento mínimo: <strong>70%</strong> de acertos em no mínimo 20 testes</div>
-                <div className={cn("font-mono font-bold text-lg", result.pctC >= 70 && result.totalC >= 20 ? "text-success" : "text-danger")}>
+                <div className="text-[13px] text-muted">
+                  Aproveitamento mínimo: <strong>70%</strong> de acertos em no mínimo <strong>20 testes</strong>
+                  {!result.hasMinTests && result.totalC > 0 && (
+                    <span className="ml-2 text-danger font-medium">(Faltam {20 - result.totalC} testes)</span>
+                  )}
+                </div>
+                <div className={cn("font-mono font-bold text-lg", result.pctC >= 70 && result.hasMinTests ? "text-success" : "text-danger")}>
                   {result.pctC.toFixed(0)}% ({result.hitsC}/{result.totalC})
                 </div>
               </div>
@@ -712,7 +793,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <InfoRow label="Duração Total" value={formatTime(totalSeconds)} />
                 <InfoRow label="Avaliação A (média)" value={`${result.avgA.toFixed(1)} / 10 ${result.avgA >= 7 ? "✅" : "❌"}`} />
                 <InfoRow label="Avaliação B (média)" value={`${result.avgB.toFixed(1)} / 10 ${result.avgB >= 7 ? "✅" : "❌"}`} />
-                <InfoRow label="Avaliação C (acertos)" value={`${result.pctC.toFixed(0)}% (${result.hitsC}/${result.totalC}) ${result.pctC >= 70 && result.totalC >= 20 ? "✅" : "❌"}`} />
+                <InfoRow label="Avaliação C (acertos)" value={`${result.pctC.toFixed(0)}% (${result.hitsC}/${result.totalC}) ${result.pctC >= 70 && result.hasMinTests ? "✅" : "❌"}`} />
                 <InfoRow label="Data/Hora" value={new Date().toLocaleString("pt-BR")} />
               </div>
             </Card>
@@ -857,8 +938,16 @@ const EvalSection = ({
                   max="10"
                   step="0.5"
                   className="w-16 p-1 border border-border2 text-center font-mono text-[13px] outline-none focus:border-accent"
-                  value={scores[i] || ""}
-                  onChange={(e) => onScoreChange(i, parseFloat(e.target.value))}
+                  value={scores[i] === undefined ? "" : scores[i]}
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                    if (val === undefined) {
+                      onScoreChange(i, undefined as any);
+                    } else {
+                      const clamped = Math.max(0, Math.min(10, val));
+                      onScoreChange(i, clamped);
+                    }
+                  }}
                   placeholder="—"
                 />
               </td>
