@@ -3,11 +3,15 @@ import { Download, Mail, Search, Loader2 } from "lucide-react";
 import { cn, maskCPF, unmaskCPF } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { CRITERIA_A, CRITERIA_B, SCENARIOS_C } from "../constants";
 
 interface Certificate {
   id: string;
   colaborador_nome: string;
   colaborador_cpf: string;
+  colaborador_mat: string;
   tipo_treinamento: string;
   situacao: string;
   treinador_nome?: string;
@@ -15,6 +19,16 @@ interface Certificate {
   encerrado_em: string;
   prazo_dias?: number;
   status: string;
+  local_treinamento?: string;
+  atividades?: string[];
+  notas_a?: Record<number, number>;
+  notas_b?: Record<number, number>;
+  resultados_c?: Record<number, boolean>;
+  media_a?: number;
+  media_b?: number;
+  percentual_c?: number;
+  observacoes?: string;
+  assinatura_treinador_url?: string;
 }
 
 export const Certificates: React.FC = () => {
@@ -94,6 +108,161 @@ export const Certificates: React.FC = () => {
       setSuggestions([]);
       setShowSuggestions(false);
     }
+  };
+
+  const generatePDF = async (cert: Certificate) => {
+    toast.info(`Gerando PDF para ${cert.colaborador_nome}...`);
+    
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Header
+      doc.setFontSize(18);
+      doc.setTextColor(17, 24, 39); // text-text color
+      doc.text("Comprovante de Treinamento", pageWidth / 2, 20, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setTextColor(107, 114, 128); // text-muted color
+      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, 28, { align: "center" });
+
+      // Student & Trainer Info
+      autoTable(doc, {
+        startY: 35,
+        head: [["Informações Gerais", ""]],
+        body: [
+          ["Colaborador:", cert.colaborador_nome],
+          ["CPF:", maskCPF(cert.colaborador_cpf)],
+          ["Matrícula:", cert.colaborador_mat || "N/A"],
+          ["Treinador:", cert.treinador_nome || "N/A"],
+          ["Tipo de Treinamento:", cert.tipo_treinamento.toUpperCase()],
+          ["Local:", cert.local_treinamento || "N/A"],
+          ["Data de Início:", new Date(cert.iniciado_em).toLocaleDateString("pt-BR")],
+          ["Data de Término:", cert.encerrado_em ? new Date(cert.encerrado_em).toLocaleDateString("pt-BR") : "Em andamento"],
+          ["Situação:", cert.status === 'em_andamento' ? 'EM ANDAMENTO' : (cert.situacao?.toUpperCase() || "N/A")],
+        ],
+        theme: "striped",
+        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+        styles: { fontSize: 9 },
+      });
+
+      // Activities
+      if (cert.atividades && cert.atividades.length > 0) {
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 10,
+          head: [["Atividades Executadas"]],
+          body: cert.atividades.map(act => [act]),
+          theme: "grid",
+          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          styles: { fontSize: 8 },
+        });
+      }
+
+      // Scores A
+      if (cert.notas_a && Object.keys(cert.notas_a).length > 0) {
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 10,
+          head: [["Critério A - Comportamento", "Nota"]],
+          body: CRITERIA_A.map((c, i) => [c, cert.notas_a![i] || "-"]),
+          theme: "grid",
+          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          styles: { fontSize: 7 },
+          columnStyles: { 1: { cellWidth: 20, halign: "center" } },
+        });
+      }
+
+      // Scores B
+      if (cert.notas_b && Object.keys(cert.notas_b).length > 0) {
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 10,
+          head: [["Critério B - Detecção de Ameaças", "Nota"]],
+          body: CRITERIA_B.map((c, i) => [c, cert.notas_b![i] || "-"]),
+          theme: "grid",
+          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          styles: { fontSize: 7 },
+          columnStyles: { 1: { cellWidth: 20, halign: "center" } },
+        });
+      }
+
+      // Results C
+      if (cert.resultados_c && Object.keys(cert.resultados_c).length > 0) {
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 10,
+          head: [["Critério C - Testes de Ameaça", "Resultado"]],
+          body: SCENARIOS_C.map((c, i) => [
+            c, 
+            cert.resultados_c![i] === undefined ? "-" : cert.resultados_c![i] ? "IDENTIFICOU" : "FALHOU"
+          ]),
+          theme: "grid",
+          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          styles: { fontSize: 7 },
+          columnStyles: { 1: { cellWidth: 30, halign: "center" } },
+        });
+      }
+
+      // Summary
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 10,
+        head: [["Resumo dos Resultados", ""]],
+        body: [
+          ["Média Avaliação A:", cert.media_a?.toFixed(1) || "N/A"],
+          ["Média Avaliação B:", cert.media_b?.toFixed(1) || "N/A"],
+          ["Aproveitamento Avaliação C:", cert.percentual_c ? `${cert.percentual_c.toFixed(0)}%` : "N/A"],
+        ],
+        theme: "plain",
+        styles: { fontSize: 10, fontStyle: "bold" },
+      });
+
+      // Observations
+      if (cert.observacoes) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Observações:", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        const splitObs = doc.splitTextToSize(cert.observacoes, pageWidth - 28);
+        doc.text(splitObs, 14, (doc as any).lastAutoTable.finalY + 20);
+      }
+
+      // Signature
+      if (cert.assinatura_treinador_url) {
+        try {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = cert.assinatura_treinador_url;
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+          
+          const finalY = (doc as any).lastAutoTable.finalY + (cert.observacoes ? 40 : 20);
+          if (finalY + 40 > doc.internal.pageSize.getHeight()) {
+            doc.addPage();
+            doc.addImage(img, "PNG", pageWidth / 2 - 30, 20, 60, 30);
+            doc.line(pageWidth / 2 - 40, 55, pageWidth / 2 + 40, 55);
+            doc.text("Assinatura do Treinador", pageWidth / 2, 60, { align: "center" });
+          } else {
+            doc.addImage(img, "PNG", pageWidth / 2 - 30, finalY, 60, 30);
+            doc.line(pageWidth / 2 - 40, finalY + 35, pageWidth / 2 + 40, finalY + 35);
+            doc.text("Assinatura do Treinador", pageWidth / 2, finalY + 40, { align: "center" });
+          }
+        } catch (e) {
+          console.error("Erro ao carregar assinatura:", e);
+        }
+      }
+
+      doc.save(`comprovante_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
+      toast.success("PDF gerado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao gerar PDF:", err);
+      toast.error("Erro ao gerar PDF: " + err.message);
+    }
+  };
+
+  const handleEmail = (cert: Certificate) => {
+    const subject = encodeURIComponent(`Comprovante de Treinamento - ${cert.colaborador_nome}`);
+    const body = encodeURIComponent(`Olá,\n\nSegue o comprovante de treinamento de ${cert.colaborador_nome}.\n\nTipo: ${cert.tipo_treinamento.toUpperCase()}\nSituação: ${cert.status === 'em_andamento' ? 'EM ANDAMENTO' : (cert.situacao?.toUpperCase() || "N/A")}\nData: ${new Date(cert.encerrado_em || cert.iniciado_em).toLocaleDateString("pt-BR")}\n\nAtenciosamente,\nEquipe de Treinamento`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   const calculateExpiration = (dateStr: string, days?: number) => {
@@ -213,18 +382,9 @@ export const Certificates: React.FC = () => {
                 certificates.map((cert) => (
                   <CertificateRow
                     key={cert.id}
-                    name={cert.colaborador_nome}
-                    cpf={maskCPF(cert.colaborador_cpf)}
-                    type={cert.tipo_treinamento}
-                    status={cert.status === 'em_andamento' ? 'Em Andamento' : cert.situacao}
-                    statusColor={
-                      cert.status === 'em_andamento' ? 'yellow' : 
-                      cert.situacao === 'apto' ? 'green' : 'red'
-                    }
-                    trainer={cert.treinador_nome || "N/A"}
-                    date={new Date(cert.encerrado_em || cert.iniciado_em).toLocaleDateString()}
-                    expires={calculateExpiration(cert.encerrado_em || cert.iniciado_em, cert.prazo_dias)}
-                    warning={cert.status === 'em_andamento'}
+                    cert={cert}
+                    onDownload={() => generatePDF(cert)}
+                    onEmail={() => handleEmail(cert)}
                   />
                 ))
               )}
@@ -237,68 +397,76 @@ export const Certificates: React.FC = () => {
 };
 
 const CertificateRow: React.FC<{
-  name: string;
-  cpf: string;
-  type: string;
-  status: string;
-  statusColor: "green" | "red" | "yellow";
-  trainer: string;
-  date: string;
-  expires: string;
-  warning?: boolean;
+  cert: Certificate;
+  onDownload: () => void;
+  onEmail: () => void;
 }> = ({
-  name,
-  cpf,
-  type,
-  status,
-  statusColor,
-  trainer,
-  date,
-  expires,
-  warning,
-}) => (
-  <tr className={cn("hover:bg-surface2 transition-colors", warning && "bg-warning-light/30")}>
-    <td className="p-3 px-4">
-      <div className="text-[13px] font-medium">{name} {warning && "⚠️"}</div>
-      <div className="text-[11px] font-mono text-muted">{cpf}</div>
-    </td>
-    <td className="p-3 px-4">
-      <span className="px-2 py-0.5 bg-surface2 border border-border text-[11px] font-mono text-muted uppercase">
-        {type}
-      </span>
-    </td>
-    <td className="p-3 px-4">
-      <span
-        className={cn(
-          "px-2 py-0.5 text-[11px] font-mono font-semibold uppercase tracking-tight",
-          statusColor === "green" && "bg-success-light text-success",
-          statusColor === "red" && "bg-danger-light text-danger",
-          statusColor === "yellow" && "bg-warning-light text-warning"
-        )}
-      >
-        {status}
-      </span>
-    </td>
-    <td className="p-3 px-4 text-[12px]">{trainer}</td>
-    <td className="p-3 px-4 font-mono text-[12px]">{date}</td>
-    <td className={cn("p-3 px-4 font-mono text-[12px]", warning && "text-warning font-bold")}>{expires}</td>
-    <td className="p-3 px-4">
-      <div className="flex gap-2">
-        <button 
-          onClick={() => toast.info(`Gerando PDF para ${name}...`)}
-          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
-          title="Baixar PDF"
+  cert,
+  onDownload,
+  onEmail,
+}) => {
+  const calculateExpiration = (dateStr: string, days?: number) => {
+    if (!days) return "—";
+    const date = new Date(dateStr);
+    const expirationDate = new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diffTime = expirationDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return "Expirado";
+    return `${diffDays} dias`;
+  };
+
+  const date = new Date(cert.encerrado_em || cert.iniciado_em).toLocaleDateString();
+  const expires = calculateExpiration(cert.encerrado_em || cert.iniciado_em, cert.prazo_dias);
+  const warning = cert.status === 'em_andamento';
+  const status = cert.status === 'em_andamento' ? 'Em Andamento' : cert.situacao;
+  const statusColor = cert.status === 'em_andamento' ? 'yellow' : cert.situacao === 'apto' ? 'green' : 'red';
+
+  return (
+    <tr className={cn("hover:bg-surface2 transition-colors", warning && "bg-warning-light/30")}>
+      <td className="p-3 px-4">
+        <div className="text-[13px] font-medium">{cert.colaborador_nome} {warning && "⚠️"}</div>
+        <div className="text-[11px] font-mono text-muted">{maskCPF(cert.colaborador_cpf)}</div>
+      </td>
+      <td className="p-3 px-4">
+        <span className="px-2 py-0.5 bg-surface2 border border-border text-[11px] font-mono text-muted uppercase">
+          {cert.tipo_treinamento}
+        </span>
+      </td>
+      <td className="p-3 px-4">
+        <span
+          className={cn(
+            "px-2 py-0.5 text-[11px] font-mono font-semibold uppercase tracking-tight",
+            statusColor === "green" && "bg-success-light text-success",
+            statusColor === "red" && "bg-danger-light text-danger",
+            statusColor === "yellow" && "bg-warning-light text-warning"
+          )}
         >
-          <Download size={14} />
-        </button>
-        <button 
-          onClick={() => toast.info(`Enviando comprovante de ${name} por e-mail...`)}
-          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
-          title="Enviar por E-mail"
-        >
-          <Mail size={14} />
-        </button>
-      </div>
-    </td>
-  </tr>
-);
+          {status}
+        </span>
+      </td>
+      <td className="p-3 px-4 text-[12px]">{cert.treinador_nome || "N/A"}</td>
+      <td className="p-3 px-4 font-mono text-[12px]">{date}</td>
+      <td className={cn("p-3 px-4 font-mono text-[12px]", warning && "text-warning font-bold")}>{expires}</td>
+      <td className="p-3 px-4">
+        <div className="flex gap-2">
+          <button 
+            onClick={onDownload}
+            className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
+            title="Baixar PDF"
+          >
+            <Download size={14} />
+          </button>
+          <button 
+            onClick={onEmail}
+            className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 text-muted transition-colors" 
+            title="Enviar por E-mail"
+          >
+            <Mail size={14} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
