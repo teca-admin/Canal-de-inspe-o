@@ -464,7 +464,7 @@ export const OngoingTrainings: React.FC = () => {
                 <Clock size={24} />
               </div>
               <div>
-                <div className="text-[11px] text-accent font-bold uppercase tracking-wider">Sessão em Andamento: {selectedActivity}</div>
+                <div className="text-[11px] text-accent font-bold uppercase tracking-wider">Avaliação em Andamento: {selectedActivity}</div>
                 <div className="text-lg font-bold text-text">{selectedTraining.colaborador_nome}</div>
                 <div className="text-[12px] text-muted">{selectedTraining.tipo_treinamento} — {selectedTraining.local_treinamento}</div>
               </div>

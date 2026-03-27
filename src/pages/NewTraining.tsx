@@ -51,7 +51,8 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
   const [timerActive, setTimerActive] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
   const [currentActivity, setCurrentActivity] = useState<string>("");
-  const [sessions, setSessions] = useState<Array<{ activity: string, seconds: number, start: string, end: string }>>([]);
+  const [currentCriterion, setCurrentCriterion] = useState<"A" | "B" | "C" | "">("");
+  const [sessions, setSessions] = useState<Array<{ activity: string, criterion: string, seconds: number, start: string, end: string }>>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Signature
@@ -74,8 +75,8 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
 
   const handleToggleTimer = () => {
     if (!timerActive) {
-      if (!currentActivity) {
-        toast.error("Selecione uma atividade antes de iniciar o tempo.");
+      if (!currentActivity || !currentCriterion) {
+        toast.error("Selecione a atividade e o critério antes de iniciar o tempo.");
         return;
       }
       setStartTime(new Date().toISOString());
@@ -85,6 +86,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       if (seconds > 0) {
         setSessions([...sessions, {
           activity: currentActivity,
+          criterion: currentCriterion,
           seconds: seconds,
           start: startTime!,
           end: endTime
@@ -93,7 +95,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
       setTimerActive(false);
       setSeconds(0);
       setStartTime(null);
-      toast.success(`Sessão de "${currentActivity}" registrada!`);
+      toast.success(`Sessão de "${currentActivity} - Critério ${currentCriterion}" registrada!`);
     }
   };
 
@@ -505,20 +507,36 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         <div className="space-y-6">
           <div className="bg-surface border border-border p-4 sm:p-6 shadow-sm">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-              <div className="flex-1 space-y-4 w-full">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Atividade Atual</label>
-                  <select
-                    disabled={timerActive}
-                    className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
-                    value={currentActivity}
-                    onChange={(e) => setCurrentActivity(e.target.value)}
-                  >
-                    <option value="">Selecione a atividade para cronometrar...</option>
-                    {config.atividades.map((act) => (
-                      <option key={act} value={act}>{act}</option>
-                    ))}
-                  </select>
+              <div className="space-y-4 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Atividade em Avaliação</label>
+                    <select
+                      disabled={timerActive}
+                      className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
+                      value={currentActivity}
+                      onChange={(e) => setCurrentActivity(e.target.value)}
+                    >
+                      <option value="">Selecione a atividade...</option>
+                      {config.atividades.map((act) => (
+                        <option key={act} value={act}>{act}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted font-mono uppercase tracking-wider">Critério em Avaliação</label>
+                    <select
+                      disabled={timerActive}
+                      className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface text-sm"
+                      value={currentCriterion}
+                      onChange={(e) => setCurrentCriterion(e.target.value as any)}
+                    >
+                      <option value="">Selecione o critério...</option>
+                      <option value="A">Critério A — Comportamento</option>
+                      <option value="B">Critério B — Detecção de Ameaças</option>
+                      <option value="C">Critério C — Testes Aleatórios</option>
+                    </select>
+                  </div>
                 </div>
                 
                 <div className="flex items-center gap-6">
@@ -568,6 +586,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                     <div key={i} className="p-3 bg-surface2 border border-border rounded flex justify-between items-center">
                       <div className="truncate pr-2">
                         <div className="text-[11px] font-bold truncate">{s.activity}</div>
+                        <div className="text-[10px] text-accent font-mono">Critério {s.criterion}</div>
                         <div className="text-[10px] text-muted">{new Date(s.start).toLocaleTimeString()}</div>
                       </div>
                       <div className="text-[12px] font-mono font-bold text-accent">{formatTime(s.seconds)}</div>
