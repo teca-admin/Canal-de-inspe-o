@@ -6,7 +6,7 @@ CREATE TABLE public.profiles (
     nome_completo TEXT NOT NULL,
     cpf TEXT NOT NULL,
     cargo TEXT NOT NULL,
-    perfil TEXT NOT NULL CHECK (perfil IN ('admin', 'treinador', 'cliente')),
+    perfil TEXT NOT NULL CHECK (perfil IN ('admin', 'treinador', 'cliente', 'colaborador')),
     ativo BOOLEAN DEFAULT TRUE,
     device_id TEXT,
     device_approved BOOLEAN DEFAULT FALSE,
@@ -43,6 +43,15 @@ CREATE TABLE public.treinamentos (
     media_b NUMERIC DEFAULT 0,
     percentual_c NUMERIC DEFAULT 0,
     observacoes TEXT,
+    -- Novas colunas para assinaturas finais
+    assinatura_final_colaborador_url TEXT,
+    assinatura_final_treinador_url TEXT,
+    assinatura_final_treinador_2_url TEXT,
+    assinatura_final_cliente_url TEXT,
+    data_assinatura_final_colaborador TIMESTAMPTZ,
+    data_assinatura_final_treinador TIMESTAMPTZ,
+    data_assinatura_final_treinador_2 TIMESTAMPTZ,
+    data_assinatura_final_cliente TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -74,6 +74,21 @@ export interface OngoingTraining {
   notas_a: Record<number, number>;
   notas_b: Record<number, number>;
   resultados_c: Record<number, boolean>;
+  media_a?: number;
+  media_b?: number;
+  percentual_c?: number;
+  situacao?: "apto" | "nao_apto";
+  encerrado_em?: string;
+  observacoes?: string;
+  // Novas assinaturas finais
+  assinatura_final_colaborador_url?: string;
+  assinatura_final_treinador_url?: string;
+  assinatura_final_treinador_2_url?: string;
+  assinatura_final_cliente_url?: string;
+  data_assinatura_final_colaborador?: string;
+  data_assinatura_final_treinador?: string;
+  data_assinatura_final_treinador_2?: string;
+  data_assinatura_final_cliente?: string;
   created_at: string;
 }
 

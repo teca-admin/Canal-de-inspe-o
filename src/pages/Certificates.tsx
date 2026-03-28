@@ -5,7 +5,9 @@ import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import SignatureCanvas from "react-signature-canvas";
 import { CRITERIA_A, CRITERIA_B, SCENARIOS_C } from "../constants";
+import { XCircle, CheckCircle2, User, ShieldCheck, Briefcase } from "lucide-react";
 
 interface Certificate {
   id: string;
@@ -38,7 +40,108 @@ interface Certificate {
   percentual_c?: number;
   observacoes?: string;
   assinatura_treinador_url?: string;
+  // Novas assinaturas finais
+  assinatura_final_colaborador_url?: string;
+  assinatura_final_treinador_url?: string;
+  assinatura_final_treinador_2_url?: string;
+  assinatura_final_cliente_url?: string;
+  data_assinatura_final_colaborador?: string;
+  data_assinatura_final_treinador?: string;
+  data_assinatura_final_treinador_2?: string;
+  data_assinatura_final_cliente?: string;
+  horas_acumuladas?: number;
 }
+
+interface SignatureModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (signatureUrl: string) => void;
+  role: "colaborador" | "treinador" | "cliente";
+  trainingName: string;
+}
+
+const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose, onSave, role, trainingName }) => {
+  const sigRef = React.useRef<SignatureCanvas>(null);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (sigRef.current?.isEmpty()) {
+      toast.error("Por favor, assine antes de salvar.");
+      return;
+    }
+    const signatureUrl = sigRef.current?.getTrimmedCanvas().toDataURL("image/png");
+    if (signatureUrl) {
+      onSave(signatureUrl);
+    }
+  };
+
+  const roleLabels = {
+    colaborador: "Colaborador",
+    treinador: "Treinador",
+    cliente: "Cliente",
+  };
+
+  const roleIcons = {
+    colaborador: <User size={20} />,
+    treinador: <ShieldCheck size={20} />,
+    cliente: <Briefcase size={20} />,
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+      <div className="bg-surface border border-border w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="p-5 border-b border-border flex justify-between items-center bg-surface2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-accent/10 text-accent rounded-full">
+              {roleIcons[role]}
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-text">Assinatura Digital - {roleLabels[role]}</h3>
+              <p className="text-[11px] text-muted uppercase tracking-wider">{trainingName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-text transition-colors">
+            <XCircle size={22} />
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          <div className="bg-white border-2 border-dashed border-border p-2 rounded-lg">
+            <SignatureCanvas 
+              ref={sigRef}
+              penColor="black"
+              canvasProps={{ className: "w-full h-48 cursor-crosshair" }}
+            />
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <button 
+              onClick={() => sigRef.current?.clear()}
+              className="text-[12px] text-danger hover:underline font-bold uppercase tracking-tight"
+            >
+              Limpar Campo
+            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-surface2 hover:bg-surface3 border border-border text-[13px] font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-6 py-2 bg-success hover:bg-green-700 text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95"
+              >
+                <CheckCircle2 size={18} /> CONFIRMAR ASSINATURA
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Certificates: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -50,6 +153,21 @@ export const Certificates: React.FC = () => {
   });
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [selectedCertForSignature, setSelectedCertForSignature] = useState<Certificate | null>(null);
+
+  const fetchUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      setUserProfile(data);
+    }
+  };
 
   const fetchCertificates = async () => {
     setLoading(true);
@@ -94,8 +212,64 @@ export const Certificates: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchUserProfile();
     fetchCertificates();
   }, []);
+
+  const handleSaveSignature = async (signatureUrl: string) => {
+    if (!selectedCertForSignature || !userProfile) return;
+
+    const role = userProfile.perfil; // 'treinador', 'cliente', or 'admin' (admin can act as trainer)
+    // If the user is the collaborator, we need to check if their CPF matches.
+    // But usually, the collaborator doesn't log in to this system? 
+    // The user said: "sistema indenticar meu perfil se é o treinador, colaborador opu clientes"
+    // So I assume there are profiles for them.
+
+    let updateData: any = {};
+    const now = new Date().toISOString();
+
+    // Determine which field to update based on profile
+    if (role === 'treinador' || role === 'admin') {
+      // Check if first trainer signed
+      if (!selectedCertForSignature.assinatura_final_treinador_url) {
+        updateData = {
+          assinatura_final_treinador_url: signatureUrl,
+          data_assinatura_final_treinador: now
+        };
+      } else {
+        updateData = {
+          assinatura_final_treinador_2_url: signatureUrl,
+          data_assinatura_final_treinador_2: now
+        };
+      }
+    } else if (role === 'cliente') {
+      updateData = {
+        assinatura_final_cliente_url: signatureUrl,
+        data_assinatura_final_cliente: now
+      };
+    } else {
+      // If it's the collaborator (maybe they have a 'colaborador' profile or we check CPF)
+      updateData = {
+        assinatura_final_colaborador_url: signatureUrl,
+        data_assinatura_final_colaborador: now
+      };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("treinamentos")
+        .update(updateData)
+        .eq("id", selectedCertForSignature.id);
+
+      if (error) throw error;
+
+      toast.success("Assinatura salva com sucesso!");
+      setIsSignatureModalOpen(false);
+      fetchCertificates();
+    } catch (err: any) {
+      toast.error("Erro ao salvar assinatura: " + err.message);
+    }
+  };
 
   const handleCpfChange = async (val: string) => {
     const masked = maskCPF(val);
@@ -127,19 +301,26 @@ export const Certificates: React.FC = () => {
   };
 
   const generatePDF = async (cert: Certificate) => {
-    toast.info(`Gerando PDF para ${cert.colaborador_nome}...`);
+    toast.info(`Gerando PDF completo para ${cert.colaborador_nome}...`);
     
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
 
+      // Fetch detailed history for this training
+      const { data: historyData } = await supabase
+        .from("historico_atividades")
+        .select("*")
+        .eq("treinamento_id", cert.id)
+        .order("hora_inicio", { ascending: true });
+
       // Header
       doc.setFontSize(18);
-      doc.setTextColor(17, 24, 39); // text-text color
-      doc.text("Comprovante de Treinamento", pageWidth / 2, 20, { align: "center" });
+      doc.setTextColor(17, 24, 39);
+      doc.text("Relatório Completo de Treinamento", pageWidth / 2, 20, { align: "center" });
       
       doc.setFontSize(10);
-      doc.setTextColor(107, 114, 128); // text-muted color
+      doc.setTextColor(107, 114, 128);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, 28, { align: "center" });
 
       // Student & Trainer Info
@@ -150,7 +331,7 @@ export const Certificates: React.FC = () => {
           ["Colaborador:", cert.colaborador_nome],
           ["CPF:", maskCPF(cert.colaborador_cpf)],
           ["Matrícula:", cert.colaborador_mat || "N/A"],
-          ["Treinador:", cert.treinador_nome || "N/A"],
+          ["Treinador Responsável:", cert.treinador_nome || "N/A"],
           ["Tipo de Treinamento:", cert.tipo_treinamento.toUpperCase()],
           ["Local:", cert.local_treinamento || "N/A"],
           ["Data de Início:", new Date(cert.iniciado_em).toLocaleDateString("pt-BR")],
@@ -162,14 +343,37 @@ export const Certificates: React.FC = () => {
         styles: { fontSize: 9 },
       });
 
-      // Activities and Scores
+      // Detailed History
+      if (historyData && historyData.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(31, 41, 55);
+        doc.text("Histórico Detalhado de Atividades", 14, (doc as any).lastAutoTable.finalY + 15);
+
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 20,
+          head: [["Atividade", "Critério", "Início", "Fim", "Duração"]],
+          body: historyData.map(h => [
+            h.nome_atividade,
+            h.criterio || "-",
+            new Date(h.hora_inicio).toLocaleString("pt-BR"),
+            new Date(h.hora_fim).toLocaleString("pt-BR"),
+            formatDuration(h.tempo_execucao)
+          ]),
+          theme: "grid",
+          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          styles: { fontSize: 8 },
+        });
+      }
+
+      // Activities and Scores Summary
       if (cert.atividades_status && Object.keys(cert.atividades_status).length > 0) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(31, 41, 55);
+        doc.text("Resumo de Avaliações por Atividade", 14, (doc as any).lastAutoTable.finalY + 15);
+
         Object.entries(cert.atividades_status).forEach(([actName, status], idx) => {
-          doc.setFontSize(11);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(31, 41, 55);
-          doc.text(`Atividade: ${actName}`, 14, (doc as any).lastAutoTable.finalY + 15);
-          
           const avgA = Object.values(status.notas_a).length > 0 
             ? (Object.values(status.notas_a).reduce((a, b) => a + b, 0) / Object.values(status.notas_a).length).toFixed(1)
             : "N/A";
@@ -181,82 +385,30 @@ export const Certificates: React.FC = () => {
           const pctC = totalC > 0 ? `${((hitsC / totalC) * 100).toFixed(0)}%` : "N/A";
 
           autoTable(doc, {
-            startY: (doc as any).lastAutoTable.finalY + 20,
-            head: [["Critério", "Resultado/Média"]],
+            startY: (doc as any).lastAutoTable.finalY + 10,
+            head: [[`Atividade: ${actName}`, "Resultado"]],
             body: [
               ["Avaliação A (Comportamento)", avgA],
               ["Avaliação B (Detecção)", avgB],
               ["Avaliação C (Testes)", pctC],
-              ["Tempo de Execução", formatDuration(status.tempo_segundos)],
-              ["Status", status.concluida ? "CONCLUÍDA" : "EM ANDAMENTO"]
+              ["Tempo Total Acumulado", formatDuration(status.tempo_segundos)],
             ],
             theme: "grid",
             headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
             styles: { fontSize: 8 },
           });
         });
-      } else if (cert.atividades && cert.atividades.length > 0) {
-        // Fallback for old records
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 10,
-          head: [["Atividades Executadas"]],
-          body: cert.atividades.map(act => [act]),
-          theme: "grid",
-          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
-          styles: { fontSize: 8 },
-        });
       }
 
-      // Scores A
-      if (cert.notas_a && Object.keys(cert.notas_a).length > 0) {
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 10,
-          head: [["Critério A - Comportamento", "Nota"]],
-          body: CRITERIA_A.map((c, i) => [c, cert.notas_a![i] || "-"]),
-          theme: "grid",
-          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
-          styles: { fontSize: 7 },
-          columnStyles: { 1: { cellWidth: 20, halign: "center" } },
-        });
-      }
-
-      // Scores B
-      if (cert.notas_b && Object.keys(cert.notas_b).length > 0) {
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 10,
-          head: [["Critério B - Detecção de Ameaças", "Nota"]],
-          body: CRITERIA_B.map((c, i) => [c, cert.notas_b![i] || "-"]),
-          theme: "grid",
-          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
-          styles: { fontSize: 7 },
-          columnStyles: { 1: { cellWidth: 20, halign: "center" } },
-        });
-      }
-
-      // Results C
-      if (cert.resultados_c && Object.keys(cert.resultados_c).length > 0) {
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 10,
-          head: [["Critério C - Testes de Ameaça", "Resultado"]],
-          body: SCENARIOS_C.map((c, i) => [
-            c, 
-            cert.resultados_c![i] === undefined ? "-" : cert.resultados_c![i] ? "IDENTIFICOU" : "FALHOU"
-          ]),
-          theme: "grid",
-          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
-          styles: { fontSize: 7 },
-          columnStyles: { 1: { cellWidth: 30, halign: "center" } },
-        });
-      }
-
-      // Summary
+      // Final Results
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [["Resumo dos Resultados", ""]],
+        head: [["Resultados Finais do Treinamento", ""]],
         body: [
-          ["Média Avaliação A:", cert.media_a?.toFixed(1) || "N/A"],
-          ["Média Avaliação B:", cert.media_b?.toFixed(1) || "N/A"],
-          ["Aproveitamento Avaliação C:", cert.percentual_c ? `${cert.percentual_c.toFixed(0)}%` : "N/A"],
+          ["Média Geral Avaliação A:", cert.media_a?.toFixed(1) || "N/A"],
+          ["Média Geral Avaliação B:", cert.media_b?.toFixed(1) || "N/A"],
+          ["Aproveitamento Geral Avaliação C:", cert.percentual_c ? `${cert.percentual_c.toFixed(0)}%` : "N/A"],
+          ["Carga Horária Total:", formatDuration(cert.horas_acumuladas || 0)],
         ],
         theme: "plain",
         styles: { fontSize: 10, fontStyle: "bold" },
@@ -266,42 +418,66 @@ export const Certificates: React.FC = () => {
       if (cert.observacoes) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        doc.text("Observações:", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text("Observações e Parecer Técnico:", 14, (doc as any).lastAutoTable.finalY + 15);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         const splitObs = doc.splitTextToSize(cert.observacoes, pageWidth - 28);
         doc.text(splitObs, 14, (doc as any).lastAutoTable.finalY + 20);
       }
 
-      // Signature
-      if (cert.assinatura_treinador_url) {
+      // Final Signatures Section
+      const finalY = (doc as any).lastAutoTable.finalY + (cert.observacoes ? 40 : 20);
+      
+      const addSignature = async (url: string | undefined, label: string, date: string | undefined, x: number, y: number) => {
+        if (!url) {
+          doc.line(x, y + 25, x + 60, y + 25);
+          doc.setFontSize(8);
+          doc.text(label, x + 30, y + 30, { align: "center" });
+          doc.text("(Pendente)", x + 30, y + 35, { align: "center" });
+          return;
+        }
         try {
           const img = new Image();
           img.crossOrigin = "anonymous";
-          img.src = cert.assinatura_treinador_url;
+          img.src = url;
           await new Promise((resolve, reject) => {
             img.onload = resolve;
             img.onerror = reject;
           });
-          
-          const finalY = (doc as any).lastAutoTable.finalY + (cert.observacoes ? 40 : 20);
-          if (finalY + 40 > doc.internal.pageSize.getHeight()) {
-            doc.addPage();
-            doc.addImage(img, "PNG", pageWidth / 2 - 30, 20, 60, 30);
-            doc.line(pageWidth / 2 - 40, 55, pageWidth / 2 + 40, 55);
-            doc.text("Assinatura do Treinador", pageWidth / 2, 60, { align: "center" });
-          } else {
-            doc.addImage(img, "PNG", pageWidth / 2 - 30, finalY, 60, 30);
-            doc.line(pageWidth / 2 - 40, finalY + 35, pageWidth / 2 + 40, finalY + 35);
-            doc.text("Assinatura do Treinador", pageWidth / 2, finalY + 40, { align: "center" });
+          doc.addImage(img, "PNG", x, y, 60, 25);
+          doc.line(x, y + 25, x + 60, y + 25);
+          doc.setFontSize(8);
+          doc.text(label, x + 30, y + 30, { align: "center" });
+          if (date) {
+            doc.text(`Data: ${new Date(date).toLocaleDateString("pt-BR")}`, x + 30, y + 35, { align: "center" });
           }
         } catch (e) {
-          console.error("Erro ao carregar assinatura:", e);
+          console.error(`Erro ao carregar assinatura ${label}:`, e);
+        }
+      };
+
+      // Check if we need a new page for signatures
+      if (finalY + 80 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, 14, 20);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 30, 20);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - 74, 20);
+        
+        if (cert.assinatura_final_treinador_2_url) {
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 30, 70);
+        }
+      } else {
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, 14, finalY);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 30, finalY);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - 74, finalY);
+        
+        if (cert.assinatura_final_treinador_2_url) {
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 30, finalY + 50);
         }
       }
 
-      doc.save(`comprovante_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
-      toast.success("PDF gerado com sucesso!");
+      doc.save(`treinamento_completo_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
+      toast.success("PDF completo gerado com sucesso!");
     } catch (err: any) {
       console.error("Erro ao gerar PDF:", err);
       toast.error("Erro ao gerar PDF: " + err.message);
@@ -434,6 +610,10 @@ export const Certificates: React.FC = () => {
                     cert={cert}
                     onDownload={() => generatePDF(cert)}
                     onEmail={() => handleEmail(cert)}
+                    onSign={() => {
+                      setSelectedCertForSignature(cert);
+                      setIsSignatureModalOpen(true);
+                    }}
                   />
                 ))
               )}
@@ -441,6 +621,14 @@ export const Certificates: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <SignatureModal 
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSave={handleSaveSignature}
+        role={userProfile?.perfil === 'admin' ? 'treinador' : (userProfile?.perfil || 'colaborador')}
+        trainingName={selectedCertForSignature?.colaborador_nome || ""}
+      />
     </div>
   );
 };
@@ -449,10 +637,12 @@ const CertificateRow: React.FC<{
   cert: Certificate;
   onDownload: () => void;
   onEmail: () => void;
+  onSign: () => void;
 }> = ({
   cert,
   onDownload,
   onEmail,
+  onSign,
 }) => {
   const calculateExpiration = (dateStr: string, days?: number) => {
     if (!days) return "—";
@@ -514,6 +704,15 @@ const CertificateRow: React.FC<{
           >
             <Mail size={14} />
           </button>
+          {cert.status === 'concluido' && (
+            <button 
+              onClick={onSign}
+              className="p-1.5 bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent transition-colors" 
+              title="Assinar Digitalmente"
+            >
+              <User size={14} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
