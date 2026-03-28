@@ -7,7 +7,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import SignatureCanvas from "react-signature-canvas";
 import { CRITERIA_A, CRITERIA_B, SCENARIOS_C } from "../constants";
-import { XCircle, CheckCircle2, User, ShieldCheck, Briefcase } from "lucide-react";
+import { XCircle, CheckCircle2, User, ShieldCheck, Briefcase, Eye, Printer, Send } from "lucide-react";
 
 interface Certificate {
   id: string;
@@ -89,7 +89,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose, onSave
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
       <div className="bg-surface border border-border w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="p-5 border-b border-border flex justify-between items-center bg-surface2">
           <div className="flex items-center gap-3">
@@ -143,6 +143,80 @@ const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose, onSave
   );
 };
 
+interface DocumentViewerModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  pdfUrl: string | null;
+  onSign: () => void;
+  onSend: () => void;
+  onPrint: () => void;
+  canSign: boolean;
+}
+
+const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ 
+  isOpen, onClose, pdfUrl, onSign, onSend, onPrint, canSign 
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[90] p-4 backdrop-blur-sm">
+      <div className="bg-surface border border-border w-full max-w-5xl h-[90vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
+        <div className="p-4 border-b border-border flex justify-between items-center bg-surface2">
+          <div className="flex items-center gap-2">
+            <Eye size={18} className="text-accent" />
+            <h3 className="text-base font-bold text-text">Visualização do Documento Completo</h3>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-text transition-colors">
+            <XCircle size={22} />
+          </button>
+        </div>
+        
+        <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
+          {pdfUrl ? (
+            <iframe src={pdfUrl} className="w-full h-full border-0 shadow-lg bg-white" title="PDF Preview" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="animate-spin text-accent" size={32} />
+                <p className="text-sm text-muted">Gerando visualização do documento...</p>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="p-4 border-t border-border flex flex-wrap justify-end gap-3 bg-surface2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-surface hover:bg-surface3 border border-border2 text-[13px] font-medium transition-colors"
+          >
+            Fechar
+          </button>
+          <button
+            onClick={onSend}
+            className="px-5 py-2.5 bg-surface hover:bg-surface3 border border-border2 text-[13px] font-medium flex items-center gap-2 transition-colors"
+          >
+            <Send size={16} /> Enviar relatório
+          </button>
+          {canSign && (
+            <button
+              onClick={onSign}
+              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95"
+            >
+              <User size={18} /> ASSINAR DOCUMENTO
+            </button>
+          )}
+          <button
+            onClick={onPrint}
+            className="px-6 py-2.5 bg-danger hover:bg-danger-dark text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95"
+          >
+            <Printer size={18} /> IMPRIMIR / SALVAR PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Certificates: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
@@ -156,6 +230,8 @@ export const Certificates: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [selectedCertForSignature, setSelectedCertForSignature] = useState<Certificate | null>(null);
+  const [isDocumentViewerOpen, setIsDocumentViewerOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const fetchUserProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -265,7 +341,17 @@ export const Certificates: React.FC = () => {
 
       toast.success("Assinatura salva com sucesso!");
       setIsSignatureModalOpen(false);
+      
+      // Refresh certificates and update current selected cert to refresh PDF
       fetchCertificates();
+      
+      const updatedCert = { ...selectedCertForSignature, ...updateData };
+      setSelectedCertForSignature(updatedCert);
+      
+      // Regenerate PDF preview
+      setPdfUrl(null);
+      const newPdfUrl = await generatePDF(updatedCert, false);
+      setPdfUrl(newPdfUrl);
     } catch (err: any) {
       toast.error("Erro ao salvar assinatura: " + err.message);
     }
@@ -300,8 +386,10 @@ export const Certificates: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
-  const generatePDF = async (cert: Certificate) => {
-    toast.info(`Gerando PDF completo para ${cert.colaborador_nome}...`);
+  const generatePDF = async (cert: Certificate, shouldSave = true) => {
+    if (shouldSave) {
+      toast.info(`Gerando PDF completo para ${cert.colaborador_nome}...`);
+    }
     
     try {
       const doc = new jsPDF();
@@ -476,11 +564,17 @@ export const Certificates: React.FC = () => {
         }
       }
 
-      doc.save(`treinamento_completo_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
-      toast.success("PDF completo gerado com sucesso!");
+      if (shouldSave) {
+        doc.save(`treinamento_completo_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
+        toast.success("PDF completo gerado com sucesso!");
+        return null;
+      } else {
+        return doc.output('bloburl').toString();
+      }
     } catch (err: any) {
       console.error("Erro ao gerar PDF:", err);
       toast.error("Erro ao gerar PDF: " + err.message);
+      return null;
     }
   };
 
@@ -610,9 +704,11 @@ export const Certificates: React.FC = () => {
                     cert={cert}
                     onDownload={() => generatePDF(cert)}
                     onEmail={() => handleEmail(cert)}
-                    onSign={() => {
+                    onView={() => {
                       setSelectedCertForSignature(cert);
-                      setIsSignatureModalOpen(true);
+                      setIsDocumentViewerOpen(true);
+                      setPdfUrl(null);
+                      generatePDF(cert, false).then(url => setPdfUrl(url));
                     }}
                   />
                 ))
@@ -629,6 +725,16 @@ export const Certificates: React.FC = () => {
         role={userProfile?.perfil === 'admin' ? 'treinador' : (userProfile?.perfil || 'colaborador')}
         trainingName={selectedCertForSignature?.colaborador_nome || ""}
       />
+
+      <DocumentViewerModal 
+        isOpen={isDocumentViewerOpen}
+        onClose={() => setIsDocumentViewerOpen(false)}
+        pdfUrl={pdfUrl}
+        onSign={() => setIsSignatureModalOpen(true)}
+        onSend={() => selectedCertForSignature && handleEmail(selectedCertForSignature)}
+        onPrint={() => selectedCertForSignature && generatePDF(selectedCertForSignature)}
+        canSign={selectedCertForSignature?.status === 'concluido'}
+      />
     </div>
   );
 };
@@ -637,12 +743,12 @@ const CertificateRow: React.FC<{
   cert: Certificate;
   onDownload: () => void;
   onEmail: () => void;
-  onSign: () => void;
+  onView: () => void;
 }> = ({
   cert,
   onDownload,
   onEmail,
-  onSign,
+  onView,
 }) => {
   const calculateExpiration = (dateStr: string, days?: number) => {
     if (!days) return "—";
@@ -706,11 +812,11 @@ const CertificateRow: React.FC<{
           </button>
           {cert.status === 'concluido' && (
             <button 
-              onClick={onSign}
+              onClick={onView}
               className="p-1.5 bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent transition-colors" 
-              title="Assinar Digitalmente"
+              title="Visualizar e Assinar"
             >
-              <User size={14} />
+              <Eye size={14} />
             </button>
           )}
         </div>
