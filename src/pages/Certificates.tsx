@@ -198,7 +198,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             onClick={onSend}
             className="px-5 py-2.5 bg-surface hover:bg-surface3 border border-border2 text-[13px] font-medium flex items-center gap-2 transition-colors"
           >
-            <Send size={16} /> Enviar relatório
+            <Send size={16} /> Enviar documento
           </button>
           {canSign && (
             <button
