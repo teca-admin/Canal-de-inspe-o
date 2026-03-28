@@ -171,7 +171,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           </button>
         </div>
         
-        <div className="flex-1 bg-gray-100 p-[1.5cm] overflow-hidden">
+        <div className="flex-1 bg-gray-100 p-1 overflow-hidden">
           {pdfUrl ? (
             <iframe src={pdfUrl} className="w-full h-full border-0 shadow-lg bg-white" title="PDF Preview" />
           ) : (
@@ -403,8 +403,8 @@ export const Certificates: React.FC = () => {
           logoImg.onload = resolve;
           logoImg.onerror = reject;
         });
-        // Use a more standard aspect ratio for the logo to avoid distortion
-        doc.addImage(logoImg, "PNG", margin, margin, 32, 12);
+        // Logo size adjusted to be more prominent and respect margins
+        doc.addImage(logoImg, "PNG", margin, margin, 40, 15);
       } catch (e) {
         console.error("Erro ao carregar logo:", e);
       }
@@ -417,20 +417,21 @@ export const Certificates: React.FC = () => {
         .order("hora_inicio", { ascending: true });
 
       // Header
-      doc.setFontSize(16);
+      doc.setFontSize(18);
       doc.setTextColor(225, 29, 72); // Red accent
       doc.setFont("helvetica", "bold");
-      doc.text("Relatório Completo de Treinamento", pageWidth / 2, margin + 10, { align: "center" });
+      doc.text("Relatório Completo de Treinamento", pageWidth / 2, margin + 12, { align: "center" });
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
       doc.setFont("helvetica", "normal");
-      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, margin + 16, { align: "center" });
+      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, margin + 18, { align: "center" });
 
       // Student & Trainer Info
       autoTable(doc, {
-        startY: margin + 25,
+        startY: margin + 32,
         margin: { top: margin, right: margin, bottom: margin, left: margin },
+        tableWidth: 'auto',
         head: [["Informações Gerais", ""]],
         body: [
           ["Colaborador:", cert.colaborador_nome],
@@ -445,7 +446,7 @@ export const Certificates: React.FC = () => {
         ],
         theme: "striped",
         headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: "bold" },
-        styles: { fontSize: 9 },
+        styles: { fontSize: 9, cellPadding: 2 },
       });
 
       // Detailed History
