@@ -160,7 +160,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 md:p-8 backdrop-blur-sm">
-      <div className="bg-surface border border-border w-full max-w-5xl h-full max-h-[85vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
+      <div className="bg-surface border border-border w-full max-w-5xl h-full max-h-[90vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
         <div className="p-4 border-b border-border flex justify-between items-center bg-surface2">
           <div className="flex items-center gap-2">
             <Eye size={18} className="text-accent" />
@@ -171,7 +171,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           </button>
         </div>
         
-        <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
+        <div className="flex-1 bg-gray-100 p-[1.5cm] overflow-hidden">
           {pdfUrl ? (
             <iframe src={pdfUrl} className="w-full h-full border-0 shadow-lg bg-white" title="PDF Preview" />
           ) : (
@@ -386,7 +386,12 @@ export const Certificates: React.FC = () => {
     }
     
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
+      const margin = 10;
       const pageWidth = doc.internal.pageSize.getWidth();
       
       // Load Logo
@@ -398,7 +403,8 @@ export const Certificates: React.FC = () => {
           logoImg.onload = resolve;
           logoImg.onerror = reject;
         });
-        doc.addImage(logoImg, "PNG", 14, 10, 25, 10);
+        // Use a more standard aspect ratio for the logo to avoid distortion
+        doc.addImage(logoImg, "PNG", margin, margin, 32, 12);
       } catch (e) {
         console.error("Erro ao carregar logo:", e);
       }
@@ -414,16 +420,17 @@ export const Certificates: React.FC = () => {
       doc.setFontSize(16);
       doc.setTextColor(225, 29, 72); // Red accent
       doc.setFont("helvetica", "bold");
-      doc.text("Relatório Completo de Treinamento", pageWidth / 2, 20, { align: "center" });
+      doc.text("Relatório Completo de Treinamento", pageWidth / 2, margin + 10, { align: "center" });
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
       doc.setFont("helvetica", "normal");
-      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, 26, { align: "center" });
+      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, margin + 16, { align: "center" });
 
       // Student & Trainer Info
       autoTable(doc, {
-        startY: 35,
+        startY: margin + 25,
+        margin: { top: margin, right: margin, bottom: margin, left: margin },
         head: [["Informações Gerais", ""]],
         body: [
           ["Colaborador:", cert.colaborador_nome],
@@ -446,10 +453,11 @@ export const Certificates: React.FC = () => {
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(31, 41, 55);
-        doc.text("Histórico Detalhado de Atividades", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text("Histórico Detalhado de Atividades", margin, (doc as any).lastAutoTable.finalY + 15);
 
         autoTable(doc, {
           startY: (doc as any).lastAutoTable.finalY + 20,
+          margin: { top: margin, right: margin, bottom: margin, left: margin },
           head: [["Atividade", "Critério", "Início", "Fim", "Duração"]],
           body: historyData.map(h => [
             h.nome_atividade,
@@ -469,7 +477,7 @@ export const Certificates: React.FC = () => {
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(31, 41, 55);
-        doc.text("Resumo de Avaliações por Atividade", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text("Resumo de Avaliações por Atividade", margin, (doc as any).lastAutoTable.finalY + 15);
 
         Object.entries(cert.atividades_status).forEach(([actName, status], idx) => {
           const avgA = Object.values(status.notas_a).length > 0 
@@ -484,6 +492,7 @@ export const Certificates: React.FC = () => {
 
           autoTable(doc, {
             startY: (doc as any).lastAutoTable.finalY + 10,
+            margin: { top: margin, right: margin, bottom: margin, left: margin },
             head: [[`Atividade: ${actName}`, "Resultado"]],
             body: [
               ["Avaliação A (Comportamento)", avgA],
@@ -501,6 +510,7 @@ export const Certificates: React.FC = () => {
       // Final Results
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
+        margin: { top: margin, right: margin, bottom: margin, left: margin },
         head: [["Resultados Finais do Treinamento", ""]],
         body: [
           ["Média Geral Avaliação A:", cert.media_a?.toFixed(1) || "N/A"],
@@ -516,11 +526,11 @@ export const Certificates: React.FC = () => {
       if (cert.observacoes) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        doc.text("Observações e Parecer Técnico:", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text("Observações e Parecer Técnico:", margin, (doc as any).lastAutoTable.finalY + 15);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        const splitObs = doc.splitTextToSize(cert.observacoes, pageWidth - 28);
-        doc.text(splitObs, 14, (doc as any).lastAutoTable.finalY + 20);
+        const splitObs = doc.splitTextToSize(cert.observacoes, pageWidth - (margin * 2));
+        doc.text(splitObs, margin, (doc as any).lastAutoTable.finalY + 20);
       }
 
       // Final Signatures Section
@@ -528,10 +538,10 @@ export const Certificates: React.FC = () => {
       
       const addSignature = async (url: string | undefined, label: string, date: string | undefined, x: number, y: number) => {
         if (!url) {
-          doc.line(x, y + 25, x + 60, y + 25);
+          doc.line(x, y + 25, x + 50, y + 25);
           doc.setFontSize(8);
-          doc.text(label, x + 30, y + 30, { align: "center" });
-          doc.text("(Pendente)", x + 30, y + 35, { align: "center" });
+          doc.text(label, x + 25, y + 30, { align: "center" });
+          doc.text("(Pendente)", x + 25, y + 35, { align: "center" });
           return;
         }
         try {
@@ -542,12 +552,12 @@ export const Certificates: React.FC = () => {
             img.onload = resolve;
             img.onerror = reject;
           });
-          doc.addImage(img, "PNG", x, y, 60, 25);
-          doc.line(x, y + 25, x + 60, y + 25);
+          doc.addImage(img, "PNG", x, y, 50, 25);
+          doc.line(x, y + 25, x + 50, y + 25);
           doc.setFontSize(8);
-          doc.text(label, x + 30, y + 30, { align: "center" });
+          doc.text(label, x + 25, y + 30, { align: "center" });
           if (date) {
-            doc.text(`Data: ${new Date(date).toLocaleDateString("pt-BR")}`, x + 30, y + 35, { align: "center" });
+            doc.text(`Data: ${new Date(date).toLocaleDateString("pt-BR")}`, x + 25, y + 35, { align: "center" });
           }
         } catch (e) {
           console.error(`Erro ao carregar assinatura ${label}:`, e);
@@ -557,20 +567,21 @@ export const Certificates: React.FC = () => {
       // Check if we need a new page for signatures
       if (finalY + 80 > doc.internal.pageSize.getHeight()) {
         doc.addPage();
-        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, 14, 20);
-        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 30, 20);
-        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - 74, 20);
+        const sigY = 30;
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, margin, sigY);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 25, sigY);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - margin - 50, sigY);
         
         if (cert.assinatura_final_treinador_2_url) {
-          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 30, 70);
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 25, sigY + 50);
         }
       } else {
-        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, 14, finalY);
-        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 30, finalY);
-        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - 74, finalY);
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, margin, finalY);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 25, finalY);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - margin - 50, finalY);
         
         if (cert.assinatura_final_treinador_2_url) {
-          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 30, finalY + 50);
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 25, finalY + 50);
         }
       }
 
