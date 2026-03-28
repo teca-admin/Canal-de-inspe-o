@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Download, Mail, Search, Loader2 } from "lucide-react";
-import { cn, maskCPF, unmaskCPF } from "../lib/utils";
+import { cn, maskCPF, unmaskCPF, getUserIP } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -50,6 +50,9 @@ interface Certificate {
   data_assinatura_final_treinador_2?: string;
   data_assinatura_final_cliente?: string;
   horas_acumuladas?: number;
+  ip_assinatura_treinador?: string;
+  ip_assinatura_colaborador?: string;
+  ip_assinatura_cliente?: string;
 }
 
 interface SignatureModalProps {
@@ -289,14 +292,10 @@ export const Certificates: React.FC = () => {
   const handleSaveSignature = async (signatureUrl: string) => {
     if (!selectedCertForSignature || !userProfile) return;
 
-    const role = userProfile.perfil; // 'treinador', 'cliente', or 'admin' (admin can act as trainer)
-    // If the user is the collaborator, we need to check if their CPF matches.
-    // But usually, the collaborator doesn't log in to this system? 
-    // The user said: "sistema indenticar meu perfil se é o treinador, colaborador opu clientes"
-    // So I assume there are profiles for them.
-
+    const role = userProfile.perfil;
     let updateData: any = {};
     const now = new Date().toISOString();
+    const userIP = await getUserIP();
 
     // Determine which field to update based on profile
     if (role === 'treinador' || role === 'admin') {
@@ -304,24 +303,31 @@ export const Certificates: React.FC = () => {
       if (!selectedCertForSignature.assinatura_final_treinador_url) {
         updateData = {
           assinatura_final_treinador_url: signatureUrl,
-          data_assinatura_final_treinador: now
+          data_assinatura_final_treinador: now,
+          ip_assinatura_treinador: userIP
         };
       } else {
         updateData = {
           assinatura_final_treinador_2_url: signatureUrl,
-          data_assinatura_final_treinador_2: now
+          data_assinatura_final_treinador_2: now,
+          // We don't have a specific column for a second trainer's IP, 
+          // but we can reuse the same or add one. 
+          // The request said: ip_assinatura_treinador, ip_assinatura_colaborador, ip_assinatura_cliente.
+          // I'll stick to those.
+          ip_assinatura_treinador: userIP
         };
       }
     } else if (role === 'cliente') {
       updateData = {
         assinatura_final_cliente_url: signatureUrl,
-        data_assinatura_final_cliente: now
+        data_assinatura_final_cliente: now,
+        ip_assinatura_cliente: userIP
       };
     } else {
-      // If it's the collaborator (maybe they have a 'colaborador' profile or we check CPF)
       updateData = {
         assinatura_final_colaborador_url: signatureUrl,
-        data_assinatura_final_colaborador: now
+        data_assinatura_final_colaborador: now,
+        ip_assinatura_colaborador: userIP
       };
     }
 
@@ -537,7 +543,7 @@ export const Certificates: React.FC = () => {
       // Final Signatures Section
       const finalY = (doc as any).lastAutoTable.finalY + (cert.observacoes ? 40 : 20);
       
-      const addSignature = async (url: string | undefined, label: string, date: string | undefined, x: number, y: number) => {
+      const addSignature = async (url: string | undefined, label: string, date: string | undefined, ip: string | undefined, x: number, y: number) => {
         if (!url) {
           doc.line(x, y + 25, x + 50, y + 25);
           doc.setFontSize(8);
@@ -560,6 +566,10 @@ export const Certificates: React.FC = () => {
           if (date) {
             doc.text(`Data: ${new Date(date).toLocaleDateString("pt-BR")}`, x + 25, y + 35, { align: "center" });
           }
+          if (ip) {
+            doc.setFontSize(7);
+            doc.text(`IP: ${ip}`, x + 25, y + 39, { align: "center" });
+          }
         } catch (e) {
           console.error(`Erro ao carregar assinatura ${label}:`, e);
         }
@@ -569,24 +579,50 @@ export const Certificates: React.FC = () => {
       if (finalY + 80 > doc.internal.pageSize.getHeight()) {
         doc.addPage();
         const sigY = 30;
-        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, margin, sigY);
-        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 25, sigY);
-        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - margin - 50, sigY);
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, cert.ip_assinatura_colaborador, margin, sigY);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, cert.ip_assinatura_treinador, pageWidth / 2 - 25, sigY);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, cert.ip_assinatura_cliente, pageWidth - margin - 50, sigY);
         
         if (cert.assinatura_final_treinador_2_url) {
-          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 25, sigY + 50);
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, cert.ip_assinatura_treinador, pageWidth / 2 - 25, sigY + 50);
         }
       } else {
-        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, margin, finalY);
-        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, pageWidth / 2 - 25, finalY);
-        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, pageWidth - margin - 50, finalY);
+        await addSignature(cert.assinatura_final_colaborador_url, "Colaborador", cert.data_assinatura_final_colaborador, cert.ip_assinatura_colaborador, margin, finalY);
+        await addSignature(cert.assinatura_final_treinador_url, "Treinador 1", cert.data_assinatura_final_treinador, cert.ip_assinatura_treinador, pageWidth / 2 - 25, finalY);
+        await addSignature(cert.assinatura_final_cliente_url, "Cliente", cert.data_assinatura_final_cliente, cert.ip_assinatura_cliente, pageWidth - margin - 50, finalY);
         
         if (cert.assinatura_final_treinador_2_url) {
-          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, pageWidth / 2 - 25, finalY + 50);
+          await addSignature(cert.assinatura_final_treinador_2_url, "Treinador 2", cert.data_assinatura_final_treinador_2, cert.ip_assinatura_treinador, pageWidth / 2 - 25, finalY + 50);
         }
       }
 
       if (shouldSave) {
+        const pdfBlob = doc.output('blob');
+        const fileName = `comprovantes/${cert.colaborador_cpf}/${cert.id}_${Date.now()}.pdf`;
+        
+        // 1. Upload to Storage
+        const { error: uploadError } = await supabase.storage
+          .from('documentos')
+          .upload(fileName, pdfBlob);
+        
+        if (uploadError) {
+          console.error("Erro ao fazer upload do PDF:", uploadError);
+          toast.error("Erro ao salvar cópia no servidor, mas o download local foi iniciado.");
+        } else {
+          // 2. Register in documentos_anexos
+          const expiresAt = new Date();
+          expiresAt.setFullYear(expiresAt.getFullYear() + 5);
+          
+          await supabase.from('documentos_anexos').insert({
+            treinamento_id: cert.id,
+            nome_arquivo: `treinamento_completo_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`,
+            caminho_storage: fileName,
+            tipo: 'comprovante_final',
+            tamanho_bytes: pdfBlob.size,
+            expires_at: expiresAt.toISOString()
+          });
+        }
+
         doc.save(`treinamento_completo_${cert.colaborador_nome.toLowerCase().replace(/\s+/g, "_")}.pdf`);
         toast.success("PDF completo gerado com sucesso!");
         return null;

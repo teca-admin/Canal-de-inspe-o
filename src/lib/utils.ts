@@ -17,3 +17,14 @@ export const maskCPF = (value: string) => {
 export const unmaskCPF = (value: string) => {
   return value.replace(/\D/g, "");
 };
+
+export const getUserIP = async (): Promise<string> => {
+  try {
+    const response = await fetch("https://api.ipify.org?format=json");
+    const data = await response.json();
+    return data.ip;
+  } catch (err) {
+    console.error("Erro ao capturar IP:", err);
+    return "IP não capturado";
+  }
+};

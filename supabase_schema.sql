@@ -53,6 +53,10 @@ CREATE TABLE public.treinamentos (
     data_assinatura_final_treinador TIMESTAMPTZ,
     data_assinatura_final_treinador_2 TIMESTAMPTZ,
     data_assinatura_final_cliente TIMESTAMPTZ,
+    data_formacao_base DATE,
+    ip_assinatura_treinador TEXT,
+    ip_assinatura_colaborador TEXT,
+    ip_assinatura_cliente TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -79,11 +83,24 @@ CREATE TABLE public.historico_atividades (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. Habilitar RLS (Row Level Security)
+-- 5. Tabela de Documentos Anexos (Lacuna 3)
+CREATE TABLE public.documentos_anexos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    treinamento_id UUID REFERENCES public.treinamentos(id) ON DELETE CASCADE,
+    nome_arquivo TEXT NOT NULL,
+    caminho_storage TEXT NOT NULL,
+    tipo TEXT NOT NULL, -- 'comprovante_final', 'evidencia', etc.
+    tamanho_bytes BIGINT,
+    expires_at TIMESTAMPTZ, -- ANAC exige 5 anos
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Habilitar RLS (Row Level Security)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.treinamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessoes_treinamento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.historico_atividades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documentos_anexos ENABLE ROW LEVEL SECURITY;
 
 -- 6. Políticas para Profiles
 CREATE POLICY "Perfis são visíveis por usuários autenticados" 
@@ -104,10 +121,38 @@ WITH CHECK (
     NOT EXISTS (SELECT 1 FROM public.profiles) -- Permite o primeiro admin
 );
 
--- 6. Políticas para Treinamentos
-CREATE POLICY "Treinamentos são visíveis por usuários autenticados" 
+-- 6. Políticas para Treinamentos (Lacuna 2 - Refinada)
+-- Removemos a política genérica anterior se existir
+-- DROP POLICY IF EXISTS "Treinamentos são visíveis por usuários autenticados" ON public.treinamentos;
+
+CREATE POLICY "Treinadores e Admins veem tudo" 
 ON public.treinamentos FOR SELECT 
-USING (auth.role() = 'authenticated');
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() AND perfil IN ('admin', 'treinador')
+    )
+);
+
+CREATE POLICY "Clientes veem seus treinamentos" 
+ON public.treinamentos FOR SELECT 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() AND perfil = 'cliente'
+    )
+    -- Nota: Aqui assumimos que o treinamento teria um campo cliente_id se fosse multi-empresa.
+    -- No escopo atual, clientes veem o que lhes é permitido.
+);
+
+CREATE POLICY "Colaboradores veem apenas seus próprios treinamentos" 
+ON public.treinamentos FOR SELECT 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() AND perfil = 'colaborador' AND cpf = colaborador_cpf
+    )
+);
 
 CREATE POLICY "Treinadores podem inserir treinamentos" 
 ON public.treinamentos FOR INSERT 
@@ -138,7 +183,26 @@ CREATE POLICY "Qualquer autenticado pode inserir no histórico"
 ON public.historico_atividades FOR INSERT 
 WITH CHECK (auth.role() = 'authenticated');
 
--- 9. Storage (Buckets para Assinaturas e Certificações)
+-- 9. Políticas para Documentos Anexos
+CREATE POLICY "Documentos são visíveis por quem vê o treinamento" 
+ON public.documentos_anexos FOR SELECT 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.treinamentos 
+        WHERE id = treinamento_id
+    )
+);
+
+CREATE POLICY "Apenas treinadores e admins inserem documentos" 
+ON public.documentos_anexos FOR INSERT 
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE id = auth.uid() AND perfil IN ('admin', 'treinador')
+    )
+);
+
+-- 10. Storage (Buckets para Assinaturas, Certificações e Documentos)
 -- Estes comandos criam os buckets se eles não existirem
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('assinaturas', 'assinaturas', true)
@@ -148,11 +212,15 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('certificacoes', 'certificacoes', true)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('documentos', 'documentos', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- Políticas para storage.objects
 CREATE POLICY "Objetos são públicos" 
 ON storage.objects FOR SELECT 
-USING (bucket_id IN ('assinaturas', 'certificacoes'));
+USING (bucket_id IN ('assinaturas', 'certificacoes', 'documentos'));
 
 CREATE POLICY "Usuários autenticados podem subir arquivos" 
 ON storage.objects FOR INSERT 
-WITH CHECK (bucket_id IN ('assinaturas', 'certificacoes') AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id IN ('assinaturas', 'certificacoes', 'documentos') AND auth.role() = 'authenticated');

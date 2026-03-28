@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Check, ChevronRight, Play, Square, RotateCcw, FileText, Upload, PenTool, Loader2, Clock } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "sonner";
-import { cn, maskCPF, unmaskCPF } from "../lib/utils";
+import { cn, maskCPF, unmaskCPF, getUserIP } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import {
   TrainingType,
@@ -172,6 +172,16 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         return;
       }
 
+      if (config.tipoTreinamento === TrainingType.ATUALIZACAO && !config.dataFormacaoBase) {
+        toast.error('Informe a data do treinamento de Formação para iniciar a Atualização.');
+        return;
+      }
+      
+      if (config.dataFormacaoBase && new Date(config.dataFormacaoBase) >= new Date()) {
+        toast.error('A data de Formação deve ser anterior à data atual.');
+        return;
+      }
+
       // Check for existing ongoing training
       try {
         const { data, error } = await supabase
@@ -261,6 +271,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           colaborador_mat: trainee.matricula,
           tipo_formulario: config.tipoFormulario,
           tipo_treinamento: config.tipoTreinamento,
+          data_formacao_base: config.dataFormacaoBase || null,
           local_treinamento: config.local,
           atividades: config.atividades,
           iniciado_em: new Date().toISOString(),
@@ -353,7 +364,10 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
         signatureUrl = publicUrl;
       }
 
-      // 2. Save Training
+      // 2. Capture IP
+      const userIP = await getUserIP();
+
+      // 3. Save Training
       const { data: trainingData, error: insertError } = await supabase
         .from('treinamentos')
         .insert({
@@ -363,6 +377,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           colaborador_mat: trainee.matricula,
           tipo_formulario: config.tipoFormulario,
           tipo_treinamento: config.tipoTreinamento,
+          data_formacao_base: config.dataFormacaoBase || null,
           local_treinamento: config.local,
           atividades: config.atividades,
           iniciado_em: startTime || new Date().toISOString(),
@@ -377,6 +392,7 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
           situacao: result.isApto ? 'apto' : 'nao_apto',
           observacoes: observacoes,
           assinatura_treinador_url: signatureUrl,
+          ip_assinatura_treinador: userIP,
           status: 'concluido'
         })
         .select()
@@ -528,7 +544,14 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                 <select
                   className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface"
                   value={config.tipoTreinamento}
-                  onChange={(e) => setConfig({ ...config, tipoTreinamento: e.target.value as TrainingType })}
+                  onChange={(e) => {
+                    const newType = e.target.value as TrainingType;
+                    setConfig({ 
+                      ...config, 
+                      tipoTreinamento: newType,
+                      dataFormacaoBase: newType === TrainingType.ATUALIZACAO ? config.dataFormacaoBase : undefined
+                    });
+                  }}
                 >
                   <option value={TrainingType.FORMACAO}>Formação</option>
                   <option value={TrainingType.ATUALIZACAO}>Atualização</option>
@@ -537,6 +560,22 @@ export const NewTraining: React.FC<NewTrainingProps> = ({ onComplete }) => {
                   <option value={TrainingType.PROFICIENCIA}>Proficiência</option>
                 </select>
               </div>
+
+              {config.tipoTreinamento === TrainingType.ATUALIZACAO && (
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="text-[12px] font-medium uppercase tracking-wider">Data do Treinamento de Formação *</label>
+                  <input
+                    type="date"
+                    className="w-full p-2.5 border border-border2 focus:border-accent outline-none bg-surface"
+                    value={config.dataFormacaoBase || ""}
+                    onChange={(e) => setConfig({ ...config, dataFormacaoBase: e.target.value })}
+                  />
+                  <p className="text-[11px] text-muted">
+                    O sistema só libera a Atualização após confirmar que a Formação foi realizada.
+                  </p>
+                </div>
+              )}
+
               <div className="md:col-span-2 space-y-1.5">
                 <label className="text-[12px] font-medium uppercase tracking-wider">Local do Treinamento *</label>
                 <select

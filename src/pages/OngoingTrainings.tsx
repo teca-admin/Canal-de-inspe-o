@@ -24,7 +24,6 @@ export const OngoingTrainings: React.FC = () => {
   const [isEditingEvals, setIsEditingEvals] = useState(false);
   const [expandedEval, setExpandedEval] = useState<"A" | "B" | "C" | null>(null);
   const [showFinalizeActivity, setShowFinalizeActivity] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activityToFinalize, setActivityToFinalize] = useState<string>("");
   
   const trainerSigRef = useRef<SignatureCanvas>(null);
@@ -75,29 +74,6 @@ export const OngoingTrainings: React.FC = () => {
       setTrainings(trainings.map(t => t.id === selectedTraining.id ? updatedTraining : t));
     } catch (err: any) {
       toast.error("Erro ao atualizar avaliação: " + err.message);
-    }
-  };
-
-  const handleDeleteTraining = async () => {
-    if (!selectedTraining) return;
-    
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('treinamentos')
-        .delete()
-        .eq('id', selectedTraining.id);
-
-      if (error) throw error;
-
-      toast.success("Treinamento excluído com sucesso.");
-      setSelectedTraining(null);
-      setShowDeleteConfirm(false);
-      fetchTrainings();
-    } catch (err: any) {
-      toast.error("Erro ao excluir treinamento: " + err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -752,14 +728,6 @@ export const OngoingTrainings: React.FC = () => {
                 <DetailItem label="Tipo" value={selectedTraining.tipo_treinamento} />
                 <DetailItem label="Local" value={selectedTraining.local_treinamento} />
               </div>
-              <div className="pt-4">
-                <button 
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-[10px] text-danger hover:underline font-bold uppercase flex items-center gap-1"
-                >
-                  <XCircle size={14} /> Excluir Treinamento
-                </button>
-              </div>
             </div>
 
             <div className="space-y-4">
@@ -1024,39 +992,6 @@ export const OngoingTrainings: React.FC = () => {
                 className="px-6 py-2.5 bg-success hover:bg-green-700 text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? "Processando..." : "Confirmar e Finalizar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-surface border border-border w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-border">
-              <h3 className="text-lg font-bold text-danger">Excluir Treinamento</h3>
-            </div>
-            <div className="p-6">
-              <p className="text-[14px] text-text">
-                Tem certeza que deseja excluir permanentemente o treinamento de <strong className="text-accent">{selectedTraining?.colaborador_nome}</strong>?
-              </p>
-              <p className="text-[12px] text-muted mt-2">
-                Esta ação removerá todo o progresso, avaliações e histórico de atividades. <strong>Não pode ser desfeita.</strong>
-              </p>
-            </div>
-            <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 bg-surface2 hover:bg-surface3 border border-border2 text-[12px] font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteTraining}
-                disabled={loading}
-                className="px-5 py-2 bg-danger hover:bg-danger-dark text-white text-[12px] font-bold transition-all active:scale-95 disabled:opacity-50"
-              >
-                {loading ? "Excluindo..." : "Confirmar Exclusão"}
               </button>
             </div>
           </div>
