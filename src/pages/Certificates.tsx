@@ -154,13 +154,13 @@ interface DocumentViewerModalProps {
 }
 
 const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ 
-  isOpen, onClose, pdfUrl, onSign, onSend, onPrint, canSign 
+  isOpen, onClose, pdfUrl, onSign, onSend, canSign 
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[90] p-4 backdrop-blur-sm">
-      <div className="bg-surface border border-border w-full max-w-5xl h-[90vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 md:p-8 backdrop-blur-sm">
+      <div className="bg-surface border border-border w-full max-w-5xl h-full max-h-[85vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
         <div className="p-4 border-b border-border flex justify-between items-center bg-surface2">
           <div className="flex items-center gap-2">
             <Eye size={18} className="text-accent" />
@@ -205,12 +205,6 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               <User size={18} /> ASSINAR DOCUMENTO
             </button>
           )}
-          <button
-            onClick={onPrint}
-            className="px-6 py-2.5 bg-danger hover:bg-danger-dark text-white text-[13px] font-bold flex items-center gap-2 shadow-md transition-all active:scale-95"
-          >
-            <Printer size={18} /> IMPRIMIR / SALVAR PDF
-          </button>
         </div>
       </div>
     </div>
@@ -394,6 +388,20 @@ export const Certificates: React.FC = () => {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Load Logo
+      try {
+        const logoImg = new Image();
+        logoImg.crossOrigin = "anonymous";
+        logoImg.src = "https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g";
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve;
+          logoImg.onerror = reject;
+        });
+        doc.addImage(logoImg, "PNG", 14, 10, 25, 10);
+      } catch (e) {
+        console.error("Erro ao carregar logo:", e);
+      }
 
       // Fetch detailed history for this training
       const { data: historyData } = await supabase
@@ -403,13 +411,15 @@ export const Certificates: React.FC = () => {
         .order("hora_inicio", { ascending: true });
 
       // Header
-      doc.setFontSize(18);
-      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(16);
+      doc.setTextColor(225, 29, 72); // Red accent
+      doc.setFont("helvetica", "bold");
       doc.text("Relatório Completo de Treinamento", pageWidth / 2, 20, { align: "center" });
       
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, 28, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, pageWidth / 2, 26, { align: "center" });
 
       // Student & Trainer Info
       autoTable(doc, {
@@ -427,7 +437,7 @@ export const Certificates: React.FC = () => {
           ["Situação:", cert.status === 'em_andamento' ? 'EM ANDAMENTO' : (cert.situacao?.toUpperCase() || "N/A")],
         ],
         theme: "striped",
-        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+        headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: "bold" },
         styles: { fontSize: 9 },
       });
 
@@ -449,7 +459,7 @@ export const Certificates: React.FC = () => {
             formatDuration(h.tempo_execucao)
           ]),
           theme: "grid",
-          headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+          headStyles: { fillColor: [31, 41, 55], textColor: [255, 255, 255], fontStyle: "bold" },
           styles: { fontSize: 8 },
         });
       }
@@ -482,7 +492,7 @@ export const Certificates: React.FC = () => {
               ["Tempo Total Acumulado", formatDuration(status.tempo_segundos)],
             ],
             theme: "grid",
-            headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: "bold" },
+            headStyles: { fillColor: [75, 85, 99], textColor: [255, 255, 255], fontStyle: "bold" },
             styles: { fontSize: 8 },
           });
         });
@@ -499,7 +509,7 @@ export const Certificates: React.FC = () => {
           ["Carga Horária Total:", formatDuration(cert.horas_acumuladas || 0)],
         ],
         theme: "plain",
-        styles: { fontSize: 10, fontStyle: "bold" },
+        styles: { fontSize: 10, fontStyle: "bold", textColor: [225, 29, 72] },
       });
 
       // Observations
@@ -732,7 +742,6 @@ export const Certificates: React.FC = () => {
         pdfUrl={pdfUrl}
         onSign={() => setIsSignatureModalOpen(true)}
         onSend={() => selectedCertForSignature && handleEmail(selectedCertForSignature)}
-        onPrint={() => selectedCertForSignature && generatePDF(selectedCertForSignature)}
         canSign={selectedCertForSignature?.status === 'concluido'}
       />
     </div>

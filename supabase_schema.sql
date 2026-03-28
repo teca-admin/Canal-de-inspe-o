@@ -43,6 +43,7 @@ CREATE TABLE public.treinamentos (
     media_b NUMERIC DEFAULT 0,
     percentual_c NUMERIC DEFAULT 0,
     observacoes TEXT,
+    atividades_status JSONB DEFAULT '{}',
     -- Novas colunas para assinaturas finais
     assinatura_final_colaborador_url TEXT,
     assinatura_final_treinador_url TEXT,
